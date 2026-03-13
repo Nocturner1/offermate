@@ -3,23 +3,24 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev":     "concurrently -n proxy,vite -c green,blue \"node server.js\" \"vite\"",
-    "build":   "vite build",
-    "start":   "node server.js",
+    "dev": "concurrently -n proxy,vite -c green,blue \"node server.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node server.js",
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "better-sqlite3": "^12.6.2",
+    "cors": "^2.8.5",
     "docx": "^8.5.0",
-    "file-saver": "^2.0.5",
     "express": "^4.21.1",
-    "cors": "^2.8.5"
+    "file-saver": "^2.0.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "vite": "^5.4.10"

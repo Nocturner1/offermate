@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar             from './components/Sidebar.jsx'
 import EmailInput          from './components/EmailInput.jsx'
 import FieldEditor         from './components/FieldEditor.jsx'
@@ -58,14 +58,118 @@ export default function App() {
 
   const [serverHasKey,    setServerHasKey]    = useState(false)
   const [apiKey,          setApiKey]          = useLocalStorage('om_api_key',       '')
+  const [selectedHotelId, setSelectedHotelId] = useLocalStorage('om_selected_hotel', DEFAULT_HOTELS[0].id)
 
+  // ─── Shared state (backed by SQLite) ──────────────────────────────────────
+  const [inquiries,    setInquiriesState]    = useState([])
+  const [availability, setAvailabilityState] = useState({})
+  const [hotels,       setHotelsState]       = useState(DEFAULT_HOTELS)
+  const isReady = useRef(false)
+
+  // ─── Load on mount ────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(d => setServerHasKey(!!d.hasServerKey)).catch(() => {})
+
+    Promise.all([
+      fetch('/api/anfragen').then(r => r.json()).catch(() => []),
+      fetch('/api/kalender').then(r => r.json()).catch(() => ({})),
+      fetch('/api/settings/hotels').then(r => r.json()).catch(() => null),
+    ]).then(([inqs, avail, hotelsRes]) => {
+      if (Array.isArray(inqs))   setInquiriesState(inqs)
+      if (avail && typeof avail === 'object') setAvailabilityState(avail)
+      if (hotelsRes?.value)      setHotelsState(hotelsRes.value)
+      isReady.current = true
+    })
   }, [])
-  const [hotels,          setHotels]          = useLocalStorage('om_hotels',        DEFAULT_HOTELS)
-  const [selectedHotelId, setSelectedHotelId] = useLocalStorage('om_selected_hotel', DEFAULT_HOTELS[0].id)
-  const [inquiries,       setInquiries]       = useLocalStorage('om_inquiries',     [])
-  const [availability,    setAvailability]    = useLocalStorage('om_availability',  {})
+
+  // ─── Smart setters ────────────────────────────────────────────────────────
+
+  // Inquiries: diff-based sync (add new, update changed, delete removed)
+  const setInquiries = useCallback((updater) => {
+    setInquiriesState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      if (!isReady.current) return next
+
+      const prevMap = new Map(prev.map(i => [i.id, i]))
+      const nextMap = new Map(next.map(i => [i.id, i]))
+
+      // Upsert added/changed
+      for (const [id, inq] of nextMap) {
+        const old = prevMap.get(id)
+        if (!old || JSON.stringify(old) !== JSON.stringify(inq)) {
+          fetch(`/api/anfragen/${id}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(inq),
+          }).catch(e => console.error('[sync] anfrage PUT:', e))
+        }
+      }
+
+      // Delete removed
+      for (const id of prevMap.keys()) {
+        if (!nextMap.has(id)) {
+          fetch(`/api/anfragen/${id}`, { method: 'DELETE' })
+            .catch(e => console.error('[sync] anfrage DELETE:', e))
+        }
+      }
+
+      return next
+    })
+  }, [])
+
+  // Availability: send individual cell changes
+  const setAvailability = useCallback((updater) => {
+    setAvailabilityState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      if (!isReady.current) return next
+
+      // Diff: find changed cells
+      const allHotels = new Set([...Object.keys(prev), ...Object.keys(next)])
+      for (const hotelId of allHotels) {
+        const prevH = prev[hotelId] ?? {}
+        const nextH = next[hotelId] ?? {}
+        const allDates = new Set([...Object.keys(prevH), ...Object.keys(nextH)])
+        for (const date of allDates) {
+          const prevD = prevH[date] ?? {}
+          const nextD = nextH[date] ?? {}
+          const allRooms = new Set([...Object.keys(prevD), ...Object.keys(nextD)])
+          for (const roomId of allRooms) {
+            const prevS = prevD[roomId] ?? 'free'
+            const nextS = nextD[roomId] ?? 'free'
+            if (prevS !== nextS) {
+              fetch('/api/kalender', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ hotelId, date, roomId, status: nextS }),
+              }).catch(e => console.error('[sync] kalender POST:', e))
+            }
+          }
+        }
+      }
+
+      return next
+    })
+  }, [])
+
+  // Hotels: debounced full-replace
+  const hotelsTimer = useRef(null)
+  const setHotels = useCallback((updater) => {
+    setHotelsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      if (!isReady.current) return next
+
+      clearTimeout(hotelsTimer.current)
+      hotelsTimer.current = setTimeout(() => {
+        fetch('/api/settings/hotels', {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ value: next }),
+        }).catch(e => console.error('[sync] hotels PUT:', e))
+      }, 500)
+
+      return next
+    })
+  }, [])
 
   const activeHotel = hotels.find(h => h.id === selectedHotelId) ?? hotels[0]
   const newInquiryCount = inquiries.filter(i => i.status === 'new').length
