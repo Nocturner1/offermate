@@ -22,7 +22,12 @@ app.get('/api/config', (_req, res) => {
 // ─── Anthropic proxy ──────────────────────────────────────────────────────
 app.post('/api/anthropic', async (req, res) => {
   // Server env var takes priority; falls back to key supplied by browser
-  const apiKey = process.env.ANTHROPIC_API_KEY || req.headers['x-api-key']
+  // Trim whitespace to catch common Railway copy-paste issues
+  const rawKey = process.env.ANTHROPIC_API_KEY || req.headers['x-api-key'] || ''
+  const apiKey = rawKey.trim()
+
+  // Debug: log key presence and first 10 chars (safe — always starts with "sk-ant-api")
+  console.log(`[API] key present=${!!apiKey} len=${apiKey.length} prefix="${apiKey.slice(0, 10)}"`)
 
   if (!apiKey) {
     return res.status(400).json({
@@ -42,8 +47,13 @@ app.post('/api/anthropic', async (req, res) => {
     })
 
     const data = await upstream.json()
+
+    // Debug: log Anthropic response status
+    console.log(`[API] Anthropic status=${upstream.status} error=${data?.error?.type ?? 'none'}`)
+
     res.status(upstream.status).json(data)
   } catch (err) {
+    console.error(`[API] Proxy-Fehler: ${err.message}`)
     res.status(502).json({ error: { message: `Proxy-Fehler: ${err.message}` } })
   }
 })
