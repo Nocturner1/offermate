@@ -82,7 +82,7 @@ export default function App() {
   // ─── Inquiry save ─────────────────────────────────────────────────────────
   const saveInquiry = (currentOffer) => {
     const hotel = hotels.find(h => h.id === selectedHotelId) ?? hotels[0]
-    const total = calcTotal(currentOffer.items, currentOffer.pax || 0, currentOffer.numberOfDays || 1)
+    const total = calcTotal(currentOffer.items, currentOffer.pax || 0, currentOffer.numberOfDays || 1, !!currentOffer.isAgency)
     const now   = new Date().toISOString()
 
     if (currentOffer.inquiryId) {
@@ -316,6 +316,7 @@ export default function App() {
               {step === 'preview' && offer && (
                 <OfferPreview
                   offer={offer}
+                  setOffer={setOffer}
                   onBack={() => setStep('edit')}
                   onEdit={() => setStep('edit')}
                 />

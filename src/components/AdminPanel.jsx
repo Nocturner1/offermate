@@ -63,23 +63,48 @@ function HotelPrices({ hotel, onUpdateHotel }) {
             {PRICE_CATALOG.filter(p => p.category === catId).map(item => {
               const isCustom = !!prices[item.id]
               return (
-                <div key={item.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isCustom ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
-                  <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-xs text-gray-400">CHF</span>
-                    <input type="number" step="0.5" min="0"
-                      value={getPrice(item.id, 'unitPrice') ?? item.unitPrice}
-                      onChange={e => setPrice(item.id, 'unitPrice', e.target.value)}
-                      className="input-field text-xs text-right" style={{ width: '5rem' }}/>
-                    <span className="text-xs text-gray-400" style={{ minWidth: '3.5rem' }}>{item.unit}</span>
-                  </div>
-                  {item.minPrice !== undefined && (
+                <div key={item.id} className={`px-2 py-1.5 rounded-lg ${isCustom ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-xs text-gray-400">Min.</span>
-                      <input type="number" step="10" min="0"
-                        value={getPrice(item.id, 'minPrice') ?? item.minPrice}
-                        onChange={e => setPrice(item.id, 'minPrice', e.target.value)}
+                      <span className="text-xs text-gray-400">CHF</span>
+                      <input type="number" step="0.5" min="0"
+                        value={getPrice(item.id, 'unitPrice') ?? item.unitPrice}
+                        onChange={e => setPrice(item.id, 'unitPrice', e.target.value)}
                         className="input-field text-xs text-right" style={{ width: '5rem' }}/>
+                      <span className="text-xs text-gray-400" style={{ minWidth: '3.5rem' }}>{item.unit}</span>
+                    </div>
+                    {item.minPrice !== undefined && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-gray-400">Min.</span>
+                        <input type="number" step="10" min="0"
+                          value={getPrice(item.id, 'minPrice') ?? item.minPrice}
+                          onChange={e => setPrice(item.id, 'minPrice', e.target.value)}
+                          className="input-field text-xs text-right" style={{ width: '5rem' }}/>
+                      </div>
+                    )}
+                  </div>
+                  {/* Agency price row */}
+                  {item.agencyUnitPrice !== undefined && (
+                    <div className="flex items-center gap-2 mt-1 pt-1 border-t border-dashed border-amber-200">
+                      <span className="flex-1 text-xs text-amber-700 truncate">↳ Agentur</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-gray-400">CHF</span>
+                        <input type="number" step="0.5" min="0"
+                          value={getPrice(item.id, 'agencyUnitPrice') ?? item.agencyUnitPrice}
+                          onChange={e => setPrice(item.id, 'agencyUnitPrice', e.target.value)}
+                          className="input-field text-xs text-right bg-amber-50" style={{ width: '5rem' }}/>
+                        <span className="text-xs text-gray-400" style={{ minWidth: '3.5rem' }}>{item.unit}</span>
+                      </div>
+                      {item.agencyMinPrice !== undefined && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-xs text-gray-400">Min.</span>
+                          <input type="number" step="10" min="0"
+                            value={getPrice(item.id, 'agencyMinPrice') ?? item.agencyMinPrice}
+                            onChange={e => setPrice(item.id, 'agencyMinPrice', e.target.value)}
+                            className="input-field text-xs text-right bg-amber-50" style={{ width: '5rem' }}/>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

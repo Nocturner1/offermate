@@ -36,8 +36,9 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
   const [copySuccess,  setCopySuccess]  = useState(false)
 
   const { items, schedule, pax, numberOfDays } = offer
-  const gPax  = pax || 0
-  const gDays = numberOfDays || 1
+  const gPax    = pax || 0
+  const gDays   = numberOfDays || 1
+  const isAgency = !!offer.isAgency
 
   // ─── Validation ──────────────────────────────────────────────────────────
   const missingFields = []
@@ -92,9 +93,9 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
     setOffer(prev => ({ ...prev, schedule: prev.schedule.filter(r => r.id !== id) }))
 
   // ─── Price summary ────────────────────────────────────────────────────────
-  const subtotal  = calcSubtotal(items, gPax, gDays)
-  const surcharge = calcSurcharge(items, gPax, gDays)
-  const total     = calcTotal(items, gPax, gDays)
+  const subtotal  = calcSubtotal(items, gPax, gDays, isAgency)
+  const surcharge = calcSurcharge(items, gPax, gDays, isAgency)
+  const total     = calcTotal(items, gPax, gDays, isAgency)
 
   const TABS = [
     { id: 'customer', label: 'Kontakt' },
@@ -306,6 +307,7 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
                         item={item}
                         gPax={gPax}
                         gDays={gDays}
+                        isAgency={isAgency}
                         onUpdate={patch => updateItem(item.id, patch)}
                         onRemove={item.id.startsWith('custom_') ? () => removeItem(item.id) : null}
                       />
@@ -545,30 +547,32 @@ function AvailabilityCheck({ availability, hotelId, eventDate, eventEndDate, num
 }
 
 // ─── Service Row Component ─────────────────────────────────────────────────
-function ServiceRow({ item, gPax, gDays, onUpdate, onRemove }) {
+function ServiceRow({ item, gPax, gDays, isAgency, onUpdate, onRemove }) {
   const [expanded, setExpanded] = useState(false)
-  const total = calcItemTotal(item, gPax, gDays)
+  const total = calcItemTotal(item, gPax, gDays, isAgency)
 
-  const effectivePax  = item.paxOverride  ?? gPax
-  const effectiveDays = item.quantityOverride ?? gDays
+  const effectivePax      = item.paxOverride      ?? gPax
+  const effectiveDays     = item.quantityOverride ?? gDays
+  const effectivePrice    = (isAgency && item.agencyUnitPrice != null) ? item.agencyUnitPrice : item.unitPrice
+  const effectiveMinPrice = (isAgency && item.agencyMinPrice  != null) ? item.agencyMinPrice  : item.minPrice
 
   let description = ''
   switch (item.type) {
     case 'per_person_per_day':
     case 'per_person_per_day_min':
-      description = `CHF ${item.unitPrice} × ${effectivePax} P. × ${effectiveDays} T.`
-      if (item.type === 'per_person_per_day_min' && item.unitPrice * effectivePax < (item.minPrice || 0)) {
-        description += ` (Min. CHF ${item.minPrice}/T.)`
+      description = `CHF ${effectivePrice} × ${effectivePax} P. × ${effectiveDays} T.`
+      if (item.type === 'per_person_per_day_min' && effectivePrice * effectivePax < (effectiveMinPrice || 0)) {
+        description += ` (Min. CHF ${effectiveMinPrice}/T.)`
       }
       break
     case 'flat_per_day':
-      description = `CHF ${item.unitPrice}/Tag × ${effectiveDays} T.`
+      description = `CHF ${effectivePrice}/Tag × ${effectiveDays} T.`
       break
     case 'flat_per_unit':
-      description = `CHF ${item.unitPrice} × ${item.quantity ?? 1} Stk.`
+      description = `CHF ${effectivePrice} × ${item.quantity ?? 1} Stk.`
       break
     case 'per_person':
-      description = `CHF ${item.unitPrice} × ${effectivePax} P.`
+      description = `CHF ${effectivePrice} × ${effectivePax} P.`
       break
     case 'percentage':
       description = `${item.unitPrice}% Aufschlag`

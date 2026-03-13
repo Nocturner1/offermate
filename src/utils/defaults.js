@@ -1,9 +1,9 @@
 // ─── Price Definitions ──────────────────────────────────────────────────────
 export const PRICE_CATALOG = [
   // Räume
-  { id: 'room_wattawis',    category: 'room',      name: 'Raum Wattawis',                         unitPrice: 38,   type: 'per_person_per_day_min', minPrice: 250, maxPax: 30, unit: 'p.P./Tag' },
-  { id: 'room_weinkeller',  category: 'room',      name: 'Weinkeller',                             unitPrice: 150,  type: 'flat_per_day',           maxPax: 8,  unit: '/Tag' },
-  { id: 'room_buero',       category: 'room',      name: 'Kleines Büro',                           unitPrice: 100,  type: 'flat_per_day',           unit: '/Tag' },
+  { id: 'room_wattawis',    category: 'room',      name: 'Raum Wattawis',                         unitPrice: 38,   type: 'per_person_per_day_min', minPrice: 250, agencyUnitPrice: 42,  agencyMinPrice: 290, maxPax: 30, unit: 'p.P./Tag' },
+  { id: 'room_weinkeller',  category: 'room',      name: 'Weinkeller',                             unitPrice: 150,  type: 'flat_per_day',           agencyUnitPrice: 170,                    maxPax: 8,  unit: '/Tag' },
+  { id: 'room_buero',       category: 'room',      name: 'Kleines Büro',                           unitPrice: 100,  type: 'flat_per_day',           agencyUnitPrice: 120,                                unit: '/Tag' },
   { id: 'overnight_classic',category: 'overnight', name: 'Übernachtung DZ Classic',                unitPrice: 150,  type: 'per_person',             unit: 'p.P./Nacht' },
   { id: 'overnight_premium',category: 'overnight', name: 'Übernachtung DZ Premium',                unitPrice: 180,  type: 'per_person',             unit: 'p.P./Nacht' },
   { id: 'welcome_coffee',   category: 'fb',        name: 'Begrüssungskaffee + Gipfeli',            unitPrice: 6.50, type: 'per_person_per_day',     unit: 'p.P.' },
@@ -15,14 +15,13 @@ export const PRICE_CATALOG = [
   { id: 'dinner',           category: 'fb',        name: 'Dinner 3-Gang',                          unitPrice: 65,   type: 'per_person_per_day',     unit: 'p.P.' },
   { id: 'dinner_4gang',     category: 'fb',        name: 'Dinner 4-Gang',                          unitPrice: 75,   type: 'per_person_per_day',     unit: 'p.P.' },
   { id: 'schokokick',       category: 'fb',        name: 'Schokokick (Balistoriegel)',              unitPrice: 15,   type: 'flat_per_day',           unit: '/Schüssel' },
-  { id: 'coffee_break_1',   category: 'fb',        name: 'Kaffeepause 1x',                         unitPrice: 17,   type: 'per_person_per_day',     unit: 'p.P.' },
-  { id: 'coffee_break_2',   category: 'fb',        name: 'Kaffeepause 2x',                         unitPrice: 34,   type: 'per_person_per_day',     unit: 'p.P.' },
+  { id: 'coffee_break_1',   category: 'fb',        name: 'Kaffeepause 1x',                         unitPrice: 17,   type: 'per_person_per_day',     agencyUnitPrice: 19, unit: 'p.P.' },
+  { id: 'coffee_break_2',   category: 'fb',        name: 'Kaffeepause 2x',                         unitPrice: 34,   type: 'per_person_per_day',     agencyUnitPrice: 38, unit: 'p.P.' },
   { id: 'smoothie',         category: 'fb',        name: 'Smoothie zur Kaffeepause',               unitPrice: 4,    type: 'per_person_per_day',     unit: 'p.P.' },
   { id: 'aperitif',         category: 'fb',        name: 'Hausapéro',                              unitPrice: 14,   type: 'per_person_per_day',     unit: 'p.P.' },
   { id: 'pinboard',         category: 'equipment', name: 'Zusätzliche Pinnwand/Flipchart',         unitPrice: 30,   type: 'flat_per_unit',          unit: '/Stück' },
   { id: 'microphone',       category: 'equipment', name: 'Mikrophon',                              unitPrice: 150,  type: 'flat_per_day',           unit: '/Tag' },
   { id: 'conference_tech',  category: 'equipment', name: 'Konferenz-Technik (Webcam + 3 Mikro)',  unitPrice: 350,  type: 'flat_per_day',           unit: '/Tag' },
-  { id: 'agency_surcharge', category: 'surcharge', name: 'Agentur-Aufschlag',                     unitPrice: 10,   type: 'percentage',             unit: '%' },
 ]
 
 export const CATEGORY_LABELS = {
@@ -30,7 +29,6 @@ export const CATEGORY_LABELS = {
   overnight: 'Übernachtung',
   fb:        'Verpflegung',
   equipment: 'Technik & Equipment',
-  surcharge: 'Aufschläge',
 }
 
 // ─── Default AGB text ─────────────────────────────────────────────────────
@@ -181,8 +179,10 @@ export function hotelToInfo(hotel) {
 export function buildItems(customPrices = {}) {
   return PRICE_CATALOG.map(def => ({
     ...def,
-    unitPrice:        customPrices[def.id]?.unitPrice ?? def.unitPrice,
-    minPrice:         customPrices[def.id]?.minPrice  ?? def.minPrice,
+    unitPrice:        customPrices[def.id]?.unitPrice       ?? def.unitPrice,
+    minPrice:         customPrices[def.id]?.minPrice        ?? def.minPrice,
+    agencyUnitPrice:  customPrices[def.id]?.agencyUnitPrice ?? def.agencyUnitPrice,
+    agencyMinPrice:   customPrices[def.id]?.agencyMinPrice  ?? def.agencyMinPrice,
     enabled:          false,
     quantityOverride: null,
     paxOverride:      null,
@@ -191,11 +191,8 @@ export function buildItems(customPrices = {}) {
   }))
 }
 
-export function applyDetectedServices(items, requestedIds, isAgency) {
-  return items.map(item => {
-    if (item.id === 'agency_surcharge') return { ...item, enabled: isAgency }
-    return { ...item, enabled: requestedIds.includes(item.id) }
-  })
+export function applyDetectedServices(items, requestedIds) {
+  return items.map(item => ({ ...item, enabled: requestedIds.includes(item.id) }))
 }
 
 export function getOptionDate() {

@@ -1,50 +1,55 @@
-export function calcItemTotal(item, globalPax, globalDays) {
+export function calcItemTotal(item, globalPax, globalDays, isAgency = false) {
   if (!item.enabled) return 0
-  const pax  = item.paxOverride  ?? globalPax  ?? 0
+  const pax  = item.paxOverride      ?? globalPax  ?? 0
   const days = item.quantityOverride ?? globalDays ?? 1
+
+  // Use agency-specific prices when isAgency=true and they exist on the item
+  const unitPrice = (isAgency && item.agencyUnitPrice != null) ? item.agencyUnitPrice : item.unitPrice
+  const minPrice  = (isAgency && item.agencyMinPrice  != null) ? item.agencyMinPrice  : (item.minPrice ?? 0)
 
   switch (item.type) {
     case 'per_person_per_day':
-      return item.unitPrice * pax * days
+      return unitPrice * pax * days
 
     case 'per_person_per_day_min': {
-      const perDay = item.unitPrice * pax
-      const min    = item.minPrice ?? 0
-      return Math.max(perDay, min) * days
+      const perDay = unitPrice * pax
+      return Math.max(perDay, minPrice) * days
     }
 
     case 'flat_per_day':
-      return item.unitPrice * days
+      return unitPrice * days
 
     case 'flat_per_unit':
-      return item.unitPrice * (item.quantity ?? 1)
+      return unitPrice * (item.quantity ?? 1)
 
     case 'per_person':
-      return item.unitPrice * pax
+      return unitPrice * pax
 
     case 'percentage':
-      return 0 // handled separately
+      return 0 // legacy: handled by calcSurcharge for old stored offers
 
     default:
       return 0
   }
 }
 
-export function calcSubtotal(items, globalPax, globalDays) {
+export function calcSubtotal(items, globalPax, globalDays, isAgency = false) {
   return items
     .filter(i => i.enabled && i.type !== 'percentage')
-    .reduce((sum, i) => sum + calcItemTotal(i, globalPax, globalDays), 0)
+    .reduce((sum, i) => sum + calcItemTotal(i, globalPax, globalDays, isAgency), 0)
 }
 
-export function calcSurcharge(items, globalPax, globalDays) {
-  const sub = calcSubtotal(items, globalPax, globalDays)
+// Kept for backward compat — legacy stored offers may still have agency_surcharge item
+export function calcSurcharge(items, globalPax, globalDays, isAgency = false) {
+  const sub    = calcSubtotal(items, globalPax, globalDays, isAgency)
   const agency = items.find(i => i.id === 'agency_surcharge' && i.enabled)
   if (!agency) return 0
   return sub * (agency.unitPrice / 100)
 }
 
-export function calcTotal(items, globalPax, globalDays) {
-  return calcSubtotal(items, globalPax, globalDays) + calcSurcharge(items, globalPax, globalDays)
+export function calcTotal(items, globalPax, globalDays, isAgency = false) {
+  return calcSubtotal(items, globalPax, globalDays, isAgency)
+       + calcSurcharge(items, globalPax, globalDays, isAgency)
 }
 
 export function fmtCHF(n) {

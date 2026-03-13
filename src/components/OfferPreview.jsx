@@ -5,6 +5,7 @@ import { generateDocx } from '../utils/docxExport.js'
 
 const T = {
   de: {
+    offerTitle:      'Offerte',
     greeting:        (name, lastName, greeting) =>
       greeting === 'Sie' ? `Guten Tag ${name} ${lastName},` : `Hallo ${name}`,
     event:           'Veranstaltungsdetails',
@@ -42,9 +43,16 @@ const T = {
     placeDate:       'Ort, Datum',
     clientSig:       'Unterschrift Auftraggeber',
     hotelSig:        (name) => `Unterschrift ${name}`,
+    qtyPP:           (pax, days) => `${pax} P. × ${days} T.`,
+    qtyDay:          (days) => `${days} Tag(e)`,
+    qtyPcs:          (n)    => `${n} Stk.`,
+    qtyPer:          (pax)  => `${pax} Pers.`,
+    personsCount:    (n)    => `${n} Personen`,
+    minPerDay:       'min.',
     specialRequests: 'Besondere Wünsche',
   },
   en: {
+    offerTitle:      'Offer',
     greeting:        (name, lastName, greeting) =>
       greeting === 'Sie' ? `Dear ${name} ${lastName},` : `Dear ${name},`,
     event:           'Event Details',
@@ -82,9 +90,16 @@ const T = {
     placeDate:       'Place, Date',
     clientSig:       'Client Signature',
     hotelSig:        (name) => `${name} Signature`,
+    qtyPP:           (pax, days) => `${pax} P. × ${days} d.`,
+    qtyDay:          (days) => `${days} day(s)`,
+    qtyPcs:          (n)    => `${n} pcs.`,
+    qtyPer:          (pax)  => `${pax} pers.`,
+    personsCount:    (n)    => `${n} persons`,
+    minPerDay:       'min.',
     specialRequests: 'Special Requests',
   },
   fr: {
+    offerTitle:      'Offre',
     greeting:        (name, lastName, greeting) =>
       greeting === 'Sie' ? `Bonjour ${name} ${lastName},` : `Bonjour ${name},`,
     event:           'Détails de l\'événement',
@@ -122,9 +137,16 @@ const T = {
     placeDate:       'Lieu, date',
     clientSig:       'Signature du client',
     hotelSig:        (name) => `Signature ${name}`,
+    qtyPP:           (pax, days) => `${pax} P. × ${days} j.`,
+    qtyDay:          (days) => `${days} jour(s)`,
+    qtyPcs:          (n)    => `${n} pcs.`,
+    qtyPer:          (pax)  => `${pax} pers.`,
+    personsCount:    (n)    => `${n} personnes`,
+    minPerDay:       'min.',
     specialRequests: 'Demandes particulières',
   },
   es: {
+    offerTitle:      'Oferta',
     greeting:        (name, lastName, greeting) =>
       greeting === 'Sie' ? `Estimado/a ${name} ${lastName},` : `Estimado/a ${name},`,
     event:           'Detalles del evento',
@@ -162,11 +184,17 @@ const T = {
     placeDate:       'Lugar, fecha',
     clientSig:       'Firma del cliente',
     hotelSig:        (name) => `Firma ${name}`,
+    qtyPP:           (pax, days) => `${pax} P. × ${days} d.`,
+    qtyDay:          (days) => `${days} día(s)`,
+    qtyPcs:          (n)    => `${n} uds.`,
+    qtyPer:          (pax)  => `${pax} pers.`,
+    personsCount:    (n)    => `${n} personas`,
+    minPerDay:       'mín.',
     specialRequests: 'Solicitudes especiales',
   },
 }
 
-export default function OfferPreview({ offer, onBack, onEdit }) {
+export default function OfferPreview({ offer, setOffer, onBack, onEdit }) {
   const printRef = useRef(null)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -174,6 +202,9 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
   const t      = T[lang]
   const gPax   = offer.pax  || 0
   const gDays  = offer.numberOfDays || 1
+  const isAgency = !!offer.isAgency
+
+  const setLanguage = (l) => setOffer(prev => ({ ...prev, language: l }))
 
   // Template values
   const template     = offer.hotelInfo?.template ?? {}
@@ -181,10 +212,10 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
   const greetingMode = template.greeting || 'du'
 
   const enabledItems = offer.items.filter(i => i.enabled && i.type !== 'percentage')
-  const agencyItem   = offer.items.find(i => i.id === 'agency_surcharge' && i.enabled)
-  const subtotal     = calcSubtotal(offer.items, gPax, gDays)
-  const surcharge    = calcSurcharge(offer.items, gPax, gDays)
-  const total        = calcTotal(offer.items, gPax, gDays)
+  const agencyItem   = offer.items.find(i => i.id === 'agency_surcharge' && i.enabled) // legacy compat
+  const subtotal     = calcSubtotal(offer.items, gPax, gDays, isAgency)
+  const surcharge    = calcSurcharge(offer.items, gPax, gDays, isAgency)
+  const total        = calcTotal(offer.items, gPax, gDays, isAgency)
 
   const handlePrint = () => {
     window.print()
@@ -225,6 +256,22 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
           Bearbeiten
         </button>
         <div className="flex-1" />
+
+        {/* Language switcher */}
+        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          {['de','en','fr','es'].map(l => (
+            <button
+              key={l}
+              onClick={() => setLanguage(l)}
+              className={`px-2.5 py-1.5 text-xs font-semibold uppercase transition-colors ${
+                lang === l ? 'bg-sg-700 text-white' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
         <button onClick={handlePrint} className="btn-secondary">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -275,8 +322,8 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
               </div>
             </div>
             <div className="text-right text-sm text-white/70 shrink-0">
-              <p className="font-medium text-white">Offerte</p>
-              <p>{new Date().toLocaleDateString('de-CH', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p className="font-medium text-white">{t.offerTitle}</p>
+              <p>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-CH', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
             </div>
           </div>
 
@@ -298,7 +345,7 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
                   [t.occasion,     offer.eventTitle || '—'],
                   [t.date,         dateRange],
                   [t.days,         String(gDays)],
-                  [t.pax,          offer.pax ? `${offer.pax} Personen` : <span className="text-red-500 font-medium">Nicht angegeben!</span>],
+                  [t.pax,          offer.pax ? t.personsCount(offer.pax) : <span className="text-red-500 font-medium">—</span>],
                   [t.billing,      offer.billingAddress || offer.company || '—'],
                   [t.invoiceEmail, offer.invoiceEmail || offer.email || '—'],
                 ].map(([k, v], i) => (
@@ -325,32 +372,30 @@ export default function OfferPreview({ offer, onBack, onEdit }) {
                   </thead>
                   <tbody>
                     {enabledItems.map((item, idx) => {
-                      const itemTotal = calcItemTotal(item, gPax, gDays)
-                      const effPax    = item.paxOverride  ?? gPax
-                      const effDays   = item.quantityOverride ?? gDays
+                      const itemTotal      = calcItemTotal(item, gPax, gDays, isAgency)
+                      const effPax         = item.paxOverride      ?? gPax
+                      const effDays        = item.quantityOverride ?? gDays
+                      const displayPrice   = (isAgency && item.agencyUnitPrice != null) ? item.agencyUnitPrice : item.unitPrice
+                      const displayMinPrice= (isAgency && item.agencyMinPrice  != null) ? item.agencyMinPrice  : item.minPrice
                       let qtyLabel = ''
                       switch (item.type) {
                         case 'per_person_per_day':
                         case 'per_person_per_day_min':
-                          qtyLabel = `${effPax} P. × ${effDays} T.`
-                          break
+                          qtyLabel = t.qtyPP(effPax, effDays); break
                         case 'flat_per_day':
-                          qtyLabel = `${effDays} Tag(e)`
-                          break
+                          qtyLabel = t.qtyDay(effDays); break
                         case 'flat_per_unit':
-                          qtyLabel = `${item.quantity ?? 1} Stk.`
-                          break
+                          qtyLabel = t.qtyPcs(item.quantity ?? 1); break
                         case 'per_person':
-                          qtyLabel = `${effPax} Pers.`
-                          break
+                          qtyLabel = t.qtyPer(effPax); break
                       }
                       return (
                         <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-3 py-2 text-gray-800 border border-gray-200">{item.customName || item.name}</td>
                           <td className="px-3 py-2 text-right text-gray-600 border border-gray-200">
-                            {fmtCHF(item.unitPrice)} {item.unit}
-                            {item.type === 'per_person_per_day_min' && item.minPrice && (
-                              <div className="text-xs text-gray-400">min. {fmtCHF(item.minPrice)}/T.</div>
+                            {fmtCHF(displayPrice)} {item.unit}
+                            {item.type === 'per_person_per_day_min' && displayMinPrice && (
+                              <div className="text-xs text-gray-400">{t.minPerDay} {fmtCHF(displayMinPrice)}/T.</div>
                             )}
                           </td>
                           <td className="px-3 py-2 text-center text-gray-600 border border-gray-200">{qtyLabel}</td>
