@@ -7,7 +7,7 @@ import { existsSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app       = express()
-const PORT      = process.env.PORT || 3001
+const PORT      = process.env.PORT || 3000
 const DIST      = join(__dirname, 'dist')
 const isProd    = existsSync(DIST)
 
@@ -306,13 +306,10 @@ if (isProd) {
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────
+app.listen(PORT, '0.0.0.0', () =>
+  console.log(`OfferMate läuft auf Port ${PORT} ${isProd ? '(production)' : '(dev proxy)'}`)
+)
+
 initDB()
-  .then(() => {
-    app.listen(PORT, '0.0.0.0', () =>
-      console.log(`OfferMate läuft auf Port ${PORT} ${isProd ? '(production)' : '(dev proxy)'}`)
-    )
-  })
-  .catch(err => {
-    console.error('[DB] Konnte Datenbank nicht initialisieren:', err.message)
-    process.exit(1)
-  })
+  .then(() => console.log('[DB] Initialisierung erfolgreich.'))
+  .catch(err => console.error('[DB] Initialisierung fehlgeschlagen (Server läuft weiter):', err.message))
