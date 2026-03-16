@@ -1,9 +1,9 @@
 import express    from 'express'
 import cors       from 'cors'
-import Database   from 'better-sqlite3'
+import pg         from 'pg'
 import { fileURLToPath } from 'url'
 import { dirname, join }  from 'path'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app       = express()
@@ -11,47 +11,69 @@ const PORT      = process.env.PORT || 3001
 const DIST      = join(__dirname, 'dist')
 const isProd    = existsSync(DIST)
 
-// ─── SQLite setup ─────────────────────────────────────────────────────────
-const DATA_DIR = join(__dirname, 'data')
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR)
+// ─── PostgreSQL setup ──────────────────────────────────────────────────────
+const { Pool } = pg
 
-const db = new Database(join(DATA_DIR, 'offermate.db'))
-db.pragma('journal_mode = WAL')
+if (!process.env.DATABASE_URL) {
+  console.warn('[DB] Warnung: DATABASE_URL nicht gesetzt. Datenbankverbindung wird fehlschlagen.')
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS inquiries (
-    id            TEXT PRIMARY KEY,
-    created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'new',
-    customer_name TEXT,
-    email         TEXT,
-    company       TEXT,
-    event_title   TEXT,
-    event_date    TEXT,
-    event_end_date TEXT,
-    number_of_days INTEGER,
-    pax           INTEGER,
-    language      TEXT,
-    hotel_id      TEXT,
-    hotel_name    TEXT,
-    total_amount  REAL,
-    offer_json    TEXT NOT NULL
-  );
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('railway') || process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+})
 
-  CREATE TABLE IF NOT EXISTS availability (
-    hotel_id  TEXT NOT NULL,
-    date      TEXT NOT NULL,
-    room_id   TEXT NOT NULL,
-    status    TEXT NOT NULL DEFAULT 'free',
-    PRIMARY KEY (hotel_id, date, room_id)
-  );
+pool.on('error', (err) => {
+  console.error('[DB] Unerwarteter Pool-Fehler:', err.message)
+})
 
-  CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-`)
+async function initDB() {
+  const client = await pool.connect()
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS inquiries (
+        id             TEXT PRIMARY KEY,
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL,
+        status         TEXT NOT NULL DEFAULT 'new',
+        customer_name  TEXT,
+        email          TEXT,
+        company        TEXT,
+        event_title    TEXT,
+        event_date     TEXT,
+        event_end_date TEXT,
+        number_of_days INTEGER,
+        pax            INTEGER,
+        language       TEXT,
+        hotel_id       TEXT,
+        hotel_name     TEXT,
+        total_amount   REAL,
+        offer_json     TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS availability (
+        hotel_id  TEXT NOT NULL,
+        date      TEXT NOT NULL,
+        room_id   TEXT NOT NULL,
+        status    TEXT NOT NULL DEFAULT 'free',
+        PRIMARY KEY (hotel_id, date, room_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `)
+    console.log('[DB] Tabellen bereit.')
+  } finally {
+    client.release()
+  }
+}
 
 // ─── Middleware ────────────────────────────────────────────────────────────
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'] }))
@@ -96,56 +118,34 @@ app.post('/api/anthropic', async (req, res) => {
 })
 
 // ─── Inquiries ────────────────────────────────────────────────────────────
-app.get('/api/anfragen', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM inquiries ORDER BY created_at DESC').all()
-  const inquiries = rows.map(r => ({
-    id:            r.id,
-    createdAt:     r.created_at,
-    updatedAt:     r.updated_at,
-    status:        r.status,
-    customerName:  r.customer_name,
-    email:         r.email,
-    company:       r.company,
-    eventTitle:    r.event_title,
-    eventDate:     r.event_date,
-    eventEndDate:  r.event_end_date,
-    numberOfDays:  r.number_of_days,
-    pax:           r.pax,
-    language:      r.language,
-    hotelId:       r.hotel_id,
-    hotelName:     r.hotel_name,
-    totalAmount:   r.total_amount,
-    offer:         JSON.parse(r.offer_json),
-  }))
-  res.json(inquiries)
+app.get('/api/anfragen', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM inquiries ORDER BY created_at DESC')
+    const inquiries = rows.map(r => ({
+      id:            r.id,
+      createdAt:     r.created_at,
+      updatedAt:     r.updated_at,
+      status:        r.status,
+      customerName:  r.customer_name,
+      email:         r.email,
+      company:       r.company,
+      eventTitle:    r.event_title,
+      eventDate:     r.event_date,
+      eventEndDate:  r.event_end_date,
+      numberOfDays:  r.number_of_days,
+      pax:           r.pax,
+      language:      r.language,
+      hotelId:       r.hotel_id,
+      hotelName:     r.hotel_name,
+      totalAmount:   r.total_amount,
+      offer:         JSON.parse(r.offer_json),
+    }))
+    res.json(inquiries)
+  } catch (err) {
+    console.error('[DB] GET /api/anfragen:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
-
-const upsertInquiry = db.prepare(`
-  INSERT INTO inquiries
-    (id, created_at, updated_at, status, customer_name, email, company,
-     event_title, event_date, event_end_date, number_of_days, pax,
-     language, hotel_id, hotel_name, total_amount, offer_json)
-  VALUES
-    (@id, @created_at, @updated_at, @status, @customer_name, @email, @company,
-     @event_title, @event_date, @event_end_date, @number_of_days, @pax,
-     @language, @hotel_id, @hotel_name, @total_amount, @offer_json)
-  ON CONFLICT(id) DO UPDATE SET
-    updated_at     = excluded.updated_at,
-    status         = excluded.status,
-    customer_name  = excluded.customer_name,
-    email          = excluded.email,
-    company        = excluded.company,
-    event_title    = excluded.event_title,
-    event_date     = excluded.event_date,
-    event_end_date = excluded.event_end_date,
-    number_of_days = excluded.number_of_days,
-    pax            = excluded.pax,
-    language       = excluded.language,
-    hotel_id       = excluded.hotel_id,
-    hotel_name     = excluded.hotel_name,
-    total_amount   = excluded.total_amount,
-    offer_json     = excluded.offer_json
-`)
 
 function inquiryToRow(inq) {
   return {
@@ -169,9 +169,42 @@ function inquiryToRow(inq) {
   }
 }
 
-app.post('/api/anfragen', (req, res) => {
+async function upsertInquiry(row) {
+  await pool.query(`
+    INSERT INTO inquiries
+      (id, created_at, updated_at, status, customer_name, email, company,
+       event_title, event_date, event_end_date, number_of_days, pax,
+       language, hotel_id, hotel_name, total_amount, offer_json)
+    VALUES
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    ON CONFLICT (id) DO UPDATE SET
+      updated_at     = EXCLUDED.updated_at,
+      status         = EXCLUDED.status,
+      customer_name  = EXCLUDED.customer_name,
+      email          = EXCLUDED.email,
+      company        = EXCLUDED.company,
+      event_title    = EXCLUDED.event_title,
+      event_date     = EXCLUDED.event_date,
+      event_end_date = EXCLUDED.event_end_date,
+      number_of_days = EXCLUDED.number_of_days,
+      pax            = EXCLUDED.pax,
+      language       = EXCLUDED.language,
+      hotel_id       = EXCLUDED.hotel_id,
+      hotel_name     = EXCLUDED.hotel_name,
+      total_amount   = EXCLUDED.total_amount,
+      offer_json     = EXCLUDED.offer_json
+  `, [
+    row.id, row.created_at, row.updated_at, row.status,
+    row.customer_name, row.email, row.company,
+    row.event_title, row.event_date, row.event_end_date,
+    row.number_of_days, row.pax, row.language,
+    row.hotel_id, row.hotel_name, row.total_amount, row.offer_json,
+  ])
+}
+
+app.post('/api/anfragen', async (req, res) => {
   try {
-    upsertInquiry.run(inquiryToRow(req.body))
+    await upsertInquiry(inquiryToRow(req.body))
     res.json({ ok: true })
   } catch (err) {
     console.error('[DB] POST /api/anfragen:', err.message)
@@ -179,9 +212,9 @@ app.post('/api/anfragen', (req, res) => {
   }
 })
 
-app.put('/api/anfragen/:id', (req, res) => {
+app.put('/api/anfragen/:id', async (req, res) => {
   try {
-    upsertInquiry.run(inquiryToRow({ ...req.body, id: req.params.id }))
+    await upsertInquiry(inquiryToRow({ ...req.body, id: req.params.id }))
     res.json({ ok: true })
   } catch (err) {
     console.error('[DB] PUT /api/anfragen:', err.message)
@@ -189,38 +222,50 @@ app.put('/api/anfragen/:id', (req, res) => {
   }
 })
 
-app.delete('/api/anfragen/:id', (req, res) => {
-  db.prepare('DELETE FROM inquiries WHERE id = ?').run(req.params.id)
-  res.json({ ok: true })
+app.delete('/api/anfragen/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM inquiries WHERE id = $1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[DB] DELETE /api/anfragen:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── Availability ─────────────────────────────────────────────────────────
 // Storage format: { hotelId: { "YYYY-MM-DD": { roomId: status } } }
 // We flatten to rows and re-nest on read.
 
-app.get('/api/kalender', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM availability').all()
-  const result = {}
-  for (const r of rows) {
-    if (!result[r.hotel_id]) result[r.hotel_id] = {}
-    if (!result[r.hotel_id][r.date]) result[r.hotel_id][r.date] = {}
-    result[r.hotel_id][r.date][r.room_id] = r.status
+app.get('/api/kalender', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM availability')
+    const result = {}
+    for (const r of rows) {
+      if (!result[r.hotel_id]) result[r.hotel_id] = {}
+      if (!result[r.hotel_id][r.date]) result[r.hotel_id][r.date] = {}
+      result[r.hotel_id][r.date][r.room_id] = r.status
+    }
+    res.json(result)
+  } catch (err) {
+    console.error('[DB] GET /api/kalender:', err.message)
+    res.status(500).json({ error: err.message })
   }
-  res.json(result)
 })
 
-app.post('/api/kalender', (req, res) => {
-  // Expect { hotelId, date, roomId, status }
+app.post('/api/kalender', async (req, res) => {
   const { hotelId, date, roomId, status } = req.body
   try {
     if (status === 'free') {
-      db.prepare('DELETE FROM availability WHERE hotel_id=? AND date=? AND room_id=?').run(hotelId, date, roomId)
+      await pool.query(
+        'DELETE FROM availability WHERE hotel_id=$1 AND date=$2 AND room_id=$3',
+        [hotelId, date, roomId]
+      )
     } else {
-      db.prepare(`
+      await pool.query(`
         INSERT INTO availability (hotel_id, date, room_id, status)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(hotel_id, date, room_id) DO UPDATE SET status=excluded.status
-      `).run(hotelId, date, roomId, status)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (hotel_id, date, room_id) DO UPDATE SET status = EXCLUDED.status
+      `, [hotelId, date, roomId, status])
     }
     res.json({ ok: true })
   } catch (err) {
@@ -230,18 +275,23 @@ app.post('/api/kalender', (req, res) => {
 })
 
 // ─── Settings (hotels config) ─────────────────────────────────────────────
-app.get('/api/settings/:key', (req, res) => {
-  const row = db.prepare('SELECT value FROM settings WHERE key=?').get(req.params.key)
-  if (!row) return res.status(404).json({ error: 'not found' })
-  res.json({ value: JSON.parse(row.value) })
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT value FROM settings WHERE key=$1', [req.params.key])
+    if (!rows.length) return res.status(404).json({ error: 'not found' })
+    res.json({ value: JSON.parse(rows[0].value) })
+  } catch (err) {
+    console.error('[DB] GET /api/settings:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
-app.put('/api/settings/:key', (req, res) => {
+app.put('/api/settings/:key', async (req, res) => {
   try {
-    db.prepare(`
-      INSERT INTO settings (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value=excluded.value
-    `).run(req.params.key, JSON.stringify(req.body.value))
+    await pool.query(`
+      INSERT INTO settings (key, value) VALUES ($1, $2)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `, [req.params.key, JSON.stringify(req.body.value)])
     res.json({ ok: true })
   } catch (err) {
     console.error('[DB] PUT /api/settings:', err.message)
@@ -255,6 +305,14 @@ if (isProd) {
   app.get('*', (_req, res) => res.sendFile(join(DIST, 'index.html')))
 }
 
-app.listen(PORT, '0.0.0.0', () =>
-  console.log(`OfferMate läuft auf Port ${PORT} ${isProd ? '(production)' : '(dev proxy)'}`)
-)
+// ─── Start ────────────────────────────────────────────────────────────────
+initDB()
+  .then(() => {
+    app.listen(PORT, '0.0.0.0', () =>
+      console.log(`OfferMate läuft auf Port ${PORT} ${isProd ? '(production)' : '(dev proxy)'}`)
+    )
+  })
+  .catch(err => {
+    console.error('[DB] Konnte Datenbank nicht initialisieren:', err.message)
+    process.exit(1)
+  })
