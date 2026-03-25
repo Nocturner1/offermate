@@ -75,11 +75,22 @@ async function initDB() {
 
 // ─── Middleware ────────────────────────────────────────────────────────────
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'] }))
-app.use(express.json({ limit: '4mb' }))
+app.use(express.json({ limit: '10mb' }))
 
 // ─── Config endpoint ──────────────────────────────────────────────────────
 app.get('/api/config', (_req, res) => {
   res.json({ hasServerKey: !!process.env.ANTHROPIC_API_KEY })
+})
+
+// ─── Health / DB check ────────────────────────────────────────────────────
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1')
+    res.json({ ok: true, db: 'connected' })
+  } catch (err) {
+    console.error('[DB] Health-Check fehlgeschlagen:', err.message)
+    res.status(503).json({ ok: false, db: 'unavailable', error: err.message })
+  }
 })
 
 // ─── Anthropic proxy ──────────────────────────────────────────────────────

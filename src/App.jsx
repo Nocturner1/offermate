@@ -57,6 +57,7 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState(false)
 
   const [serverHasKey,    setServerHasKey]    = useState(false)
+  const [dbError,         setDbError]         = useState(null)
   const [apiKey,          setApiKey]          = useLocalStorage('om_api_key',       '')
   const [selectedHotelId, setSelectedHotelId] = useLocalStorage('om_selected_hotel', DEFAULT_HOTELS[0].id)
 
@@ -69,6 +70,11 @@ export default function App() {
   // ─── Load on mount ────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(d => setServerHasKey(!!d.hasServerKey)).catch(() => {})
+
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(d => { if (!d.ok) setDbError(`Datenbank nicht erreichbar: ${d.error}`) })
+      .catch(() => setDbError('Server nicht erreichbar – Daten können nicht gespeichert werden.'))
 
     Promise.all([
       fetch('/api/anfragen').then(r => r.json()).catch(() => []),
@@ -101,7 +107,11 @@ export default function App() {
             method:  'PUT',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(inq),
-          }).catch(e => console.error('[sync] anfrage PUT:', e))
+          }).then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.error || r.status) }) })
+            .catch(e => {
+              console.error('[sync] anfrage PUT:', e)
+              setDbError(`Speichern fehlgeschlagen: ${e.message}`)
+            })
         }
       }
 
@@ -343,6 +353,21 @@ export default function App() {
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">
+
+          {/* DB Error */}
+          {dbError && (
+            <div className="warning-red mb-5">
+              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+              </svg>
+              <div className="flex-1 text-sm"><strong>Datenbankfehler:</strong> {dbError}</div>
+              <button onClick={() => setDbError(null)} className="text-red-400 hover:text-red-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
