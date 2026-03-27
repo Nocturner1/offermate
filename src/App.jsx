@@ -273,7 +273,7 @@ export default function App() {
     : VIEW_TITLES[view]
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-white">
 
       {/* Sidebar */}
       <Sidebar
@@ -287,7 +287,7 @@ export default function App() {
       <div className="flex-1 flex flex-col ml-64 min-w-0 overflow-hidden">
 
         {/* Top bar */}
-        <header className="no-print h-14 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
+        <header className="no-print h-14 flex items-center justify-between px-6 bg-white border-b border-black shrink-0">
           <div className="flex items-center gap-3">
             {/* Breadcrumb / title */}
             <h1 className="text-base font-semibold text-gray-900">{pageTitle}</h1>
@@ -301,8 +301,8 @@ export default function App() {
                     { id: 'preview', label: 'Vorschau' },
                   ].map((s, i, arr) => (
                     <div key={s.id} className="flex items-center gap-1.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${
-                        step === s.id ? 'bg-sg-100 text-sg-700' : 'text-gray-400'
+                      <span className={`text-xs px-2 py-0.5 font-medium ${
+                        step === s.id ? 'bg-black text-white' : 'text-gray-400'
                       }`}>{s.label}</span>
                       {i < arr.length - 1 && <span className="text-gray-200">›</span>}
                     </div>
@@ -333,7 +333,7 @@ export default function App() {
             )}
 
             {/* Hotel selector */}
-            <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
+            <div className="flex items-center gap-2 pl-3 border-l border-black">
               {activeHotel?.logo && (
                 <img src={activeHotel.logo} alt="" className="h-6 w-10 object-contain rounded" />
               )}
