@@ -83,7 +83,14 @@ export default function App() {
     ]).then(([inqs, avail, hotelsRes]) => {
       if (Array.isArray(inqs))   setInquiriesState(inqs)
       if (avail && typeof avail === 'object') setAvailabilityState(avail)
-      if (hotelsRes?.value)      setHotelsState(hotelsRes.value)
+      if (hotelsRes?.value) {
+        // Logos kommen immer aus DEFAULT_HOTELS — DB kann sie nicht überschreiben
+        const merged = hotelsRes.value.map(dbHotel => {
+          const def = DEFAULT_HOTELS.find(h => h.id === dbHotel.id)
+          return { ...dbHotel, logo: def?.logo ?? dbHotel.logo ?? null }
+        })
+        setHotelsState(merged)
+      }
       isReady.current = true
     })
   }, [])
