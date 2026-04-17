@@ -61,7 +61,11 @@ export function fmtDate(dateStr, lang = 'de') {
   if (!dateStr) return '—'
   const d = new Date(dateStr + 'T12:00:00')
   if (isNaN(d)) return dateStr
-  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-CH', {
-    day: '2-digit', month: 'long', year: 'numeric'
-  })
+  if (lang === 'en') {
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}.${mm}.${yyyy}`
 }

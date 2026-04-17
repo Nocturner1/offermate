@@ -10,7 +10,8 @@ Antworte NUR mit dem JSON-Objekt, ohne Erklärungen oder Markdown.${hotelNotes}
 
 Mögliche requestedServices IDs (nur vorhandene verwenden):
 room_wattawis, room_weinkeller, room_buero,
-overnight_classic, overnight_premium,
+overnight_classic, overnight_premium, overnight_peak,
+overnight_ez, overnight_comfort, overnight_nostalgie, overnight_suite,
 welcome_coffee,
 lunch_veg, lunch_meat, lunch_flammi, lunch_sandwich, lunch_dessert, dinner,
 coffee_break_1, coffee_break_2, smoothie, aperitif,
