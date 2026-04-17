@@ -169,8 +169,8 @@ STORNIERUNG HOTEL:
   createNewHotel({
     id:            'hotel_3koenige',
     name:          'Landgasthof Drei Könige',
-    address:       'Hauptstrasse 12, 6170 Schüpfheim',
-    phone:         '+41 41 485 70 70',
+    address:       'Dorf 27, 6162 Entlebuch',
+    phone:         '+41 41 480 12 27',
     email:         'info@3koenige-entlebuch.ch',
     website:       'www.3koenige-entlebuch.ch',
     contactPerson: 'Team Drei Könige',
@@ -311,7 +311,7 @@ STORNIERUNGEN HOTEL:
       greeting:       'du',
       signatureTitle: 'Seminarberatung Landgasthof Drei Könige',
       signatureEmail: 'info@3koenige-entlebuch.ch',
-      signaturePhone: '+41 41 485 70 70',
+      signaturePhone: '+41 41 480 12 27',
       agbText: `Stornobedingungen Seminar:
 • 0–5 Tage vor dem Termin: 100% gemäss Auftragsbestätigung
 • 6–14 Tage vor dem Termin: 75% gemäss Auftragsbestätigung
