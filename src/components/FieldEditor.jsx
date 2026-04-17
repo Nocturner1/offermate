@@ -4,13 +4,15 @@ import { CATEGORY_LABELS, EMPTY_SCHEDULE_ROW, PRICE_CATALOG } from '../utils/def
 import { CALENDAR_ROOMS, AVAIL_STATUS, getAvailStatus } from './AvailabilityCalendar.jsx'
 
 // ─── Inline editable cell ──────────────────────────────────────────────────
-function InlineInput({ value, onChange, type = 'text', className = '', placeholder = '', error = false }) {
+function InlineInput({ value, onChange, type = 'text', className = '', placeholder = '', error = false, min, max }) {
   return (
     <input
       type={type}
       value={value ?? ''}
       onChange={e => onChange(type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)}
       placeholder={placeholder}
+      min={min}
+      max={max}
       className={`input-field ${error ? 'border-red-400 bg-red-50 focus:ring-red-400' : ''} ${className}`}
     />
   )
@@ -52,7 +54,41 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
   const tabHasError = tab => missingFields.some(f => f.tab === tab)
 
   // ─── Updaters ────────────────────────────────────────────────────────────
+  const today = new Date().toISOString().split('T')[0]
+
+  const addDays = (dateStr, days) => {
+    const d = new Date(dateStr + 'T12:00:00')
+    d.setDate(d.getDate() + days)
+    return d.toISOString().split('T')[0]
+  }
+
   const set = (key, val) => setOffer(prev => ({ ...prev, [key]: val }))
+
+  const handleEventDateChange = (v) => {
+    setOffer(prev => {
+      const days = prev.numberOfDays || 1
+      const endDate = v && days > 1 ? addDays(v, days - 1) : prev.eventEndDate
+      return { ...prev, eventDate: v, eventEndDate: endDate }
+    })
+  }
+
+  const handleDaysChange = (v) => {
+    setOffer(prev => {
+      const days = v || 1
+      const endDate = prev.eventDate && days > 1 ? addDays(prev.eventDate, days - 1) : ''
+      return { ...prev, numberOfDays: v, eventEndDate: endDate }
+    })
+  }
+
+  const handleEndDateChange = (v) => {
+    setOffer(prev => {
+      if (prev.eventDate && v && v >= prev.eventDate) {
+        const diff = Math.round((new Date(v + 'T12:00:00') - new Date(prev.eventDate + 'T12:00:00')) / 86400000) + 1
+        return { ...prev, eventEndDate: v, numberOfDays: Math.max(1, diff) }
+      }
+      return { ...prev, eventEndDate: v }
+    })
+  }
 
   const updateItem = (id, patch) =>
     setOffer(prev => ({
@@ -195,14 +231,15 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
             </FieldRow>
             <FieldRow label={<>Datum <RequiredDot /></>}>
               <div className="flex gap-2">
-                <InlineInput value={offer.eventDate} onChange={v => set('eventDate', v)} type="date"
-                  error={!offer.eventDate} />
+                <InlineInput value={offer.eventDate} onChange={handleEventDateChange} type="date"
+                  min={today} error={!offer.eventDate} />
                 <span className="pt-1.5 text-sm text-gray-400">bis</span>
-                <InlineInput value={offer.eventEndDate} onChange={v => set('eventEndDate', v)} type="date" />
+                <InlineInput value={offer.eventEndDate} onChange={handleEndDateChange} type="date"
+                  min={offer.eventDate || today} />
               </div>
             </FieldRow>
             <FieldRow label="Anzahl Tage">
-              <InlineInput value={offer.numberOfDays} onChange={v => set('numberOfDays', v)} type="number" placeholder="1" />
+              <InlineInput value={offer.numberOfDays} onChange={handleDaysChange} type="number" placeholder="1" min="1" />
             </FieldRow>
 
             {/* ── Availability check ── */}
