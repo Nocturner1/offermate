@@ -229,7 +229,7 @@ export default function App() {
     setError(null)
     setIsLoading(true)
     try {
-      const parsed = await parseEmailWithClaude(emailText, apiKey)
+      const parsed = await parseEmailWithClaude(emailText, apiKey, activeHotel)
       const hotel  = hotels.find(h => h.id === selectedHotelId) ?? hotels[0]
       const items  = applyDetectedServices(buildItems(hotel.prices), parsed.requestedServices || [], parsed.isAgency || false)
       setOffer({

@@ -1,8 +1,12 @@
 const MODEL = 'claude-haiku-4-5-20251001'
 
-const SYSTEM_PROMPT = `Du bist Experte für Hotel-Seminaranfragen des Hotel Alpenblick Weggis.
+function buildSystemPrompt(hotel) {
+  const hotelName = hotel?.name || 'Hotel'
+  const hotelNotes = hotel?.notes ? `\n\nHotel-Informationen:\n${hotel.notes}` : ''
+
+  return `Du bist Experte für Hotel-Seminaranfragen des ${hotelName}.
 Extrahiere strukturierte Daten aus der E-Mail und gib valides JSON zurück.
-Antworte NUR mit dem JSON-Objekt, ohne Erklärungen oder Markdown.
+Antworte NUR mit dem JSON-Objekt, ohne Erklärungen oder Markdown.${hotelNotes}
 
 Mögliche requestedServices IDs (nur vorhandene verwenden):
 room_wattawis, room_weinkeller, room_buero,
@@ -17,7 +21,6 @@ DATEN-REGELN:
 - isAgency=true: Agentur, Agency, "im Auftrag von", "für unseren Kunden"
 - isReturningCustomer=true: "wie letztes Jahr", "wie immer", "wie bisher", "Stammgast", "schon mehrmals"
 - language: "de" / "en" / "fr" / "es" — Sprache der eingehenden E-Mail
-- Räume: Wattawis für Standard-Seminare; Weinkeller nur wenn explizit erwähnt oder Gruppe ≤8 PAX
 - tagesablauf: nur befüllen wenn konkrete Zeitangaben in der Mail stehen
 - warnings: ["PAX nicht angegeben – bitte nachfragen"] wenn PAX fehlt; ["Datum fehlt – bitte nachfragen"] wenn Datum fehlt; ["Vorjahresbuchung prüfen"] wenn Stammkunde
 
@@ -34,13 +37,8 @@ Schreibe EINEN einzigen Eröffnungssatz für die Offerte. Keine Begrüssung, kei
 - Bei Stammkunden: persönlicher ("Schön, dass ihr wieder bei uns seid.")
 - Bei Erstkontakt: etwas konkreter auf den Anlass eingehen
 - Sprache: exakt die Sprache der eingehenden E-Mail (de/en/fr/es)
-- Maximal 2 kurze Sätze
-
-Beispiele introText:
-  DE Tischfussball-Workshop mit Schifffahrt → "Ein Tischfussball-Workshop mit Schifffahrt ab Luzern — das klingt nach einem unvergesslichen Tag."
-  DE Stammkunde Gemeinderatsklausur → "Schön, dass ihr wieder bei uns seid — wir freuen uns auf eure Klausur."
-  EN Leadership Retreat → "A focused leadership retreat at the lake — we think Weggis is the perfect setting for that."
-  FR séminaire stratégique → "Un séminaire stratégique au bord du lac — nous serions ravis de vous accueillir à Weggis."`
+- Maximal 2 kurze Sätze`
+}
 
 function buildUserPrompt(emailText) {
   return `Extrahiere die Daten aus dieser Hotel-Anfrage-E-Mail:
@@ -74,7 +72,7 @@ Gib exakt dieses JSON zurück (alle Felder, fehlende als null):
 }`
 }
 
-export async function parseEmailWithClaude(emailText, apiKey) {
+export async function parseEmailWithClaude(emailText, apiKey, hotel) {
   const response = await fetch('/api/anthropic', {
     method: 'POST',
     headers: {
@@ -84,7 +82,7 @@ export async function parseEmailWithClaude(emailText, apiKey) {
     body: JSON.stringify({
       model:      MODEL,
       max_tokens: 2048,
-      system:     SYSTEM_PROMPT,
+      system:     buildSystemPrompt(hotel),
       messages:   [{ role: 'user', content: buildUserPrompt(emailText) }],
     }),
   })
