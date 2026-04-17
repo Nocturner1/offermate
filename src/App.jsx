@@ -84,13 +84,26 @@ export default function App() {
       if (Array.isArray(inqs))   setInquiriesState(inqs)
       if (avail && typeof avail === 'object') setAvailabilityState(avail)
       if (hotelsRes?.value) {
-        // Logos + calendarRooms kommen immer aus DEFAULT_HOTELS — DB kann sie nicht überschreiben
+        // Für vordefinierte Hotels: Stammdaten immer aus DEFAULT_HOTELS (nie aus DB überschreiben).
+        // Nur prices + template kommen aus der DB (user-konfigurierbar).
         const merged = hotelsRes.value.map(dbHotel => {
           const def = DEFAULT_HOTELS.find(h => h.id === dbHotel.id)
+          if (!def) return dbHotel  // custom hotel — DB ist authoritative
           return {
             ...dbHotel,
-            logo: def?.logo ?? dbHotel.logo ?? null,
-            calendarRooms: def?.calendarRooms ?? dbHotel.calendarRooms ?? null,
+            // Stammdaten immer aus defaults
+            name:          def.name,
+            address:       def.address,
+            phone:         def.phone,
+            email:         def.email,
+            website:       def.website,
+            contactPerson: def.contactPerson,
+            notes:         def.notes,
+            logo:          def.logo,
+            calendarRooms: def.calendarRooms,
+            // prices + template: DB-Werte haben Vorrang (user-Anpassungen)
+            prices:        dbHotel.prices   ?? def.prices   ?? {},
+            template:      dbHotel.template ?? def.template ?? {},
           }
         })
         setHotelsState(merged)
