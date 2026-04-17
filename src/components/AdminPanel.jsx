@@ -65,7 +65,7 @@ function HotelPrices({ hotel, onUpdateHotel }) {
               return (
                 <div key={item.id} className={`px-2 py-1.5 rounded-lg ${isCustom ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
+                    <span className="flex-1 text-xs text-gray-700 truncate">{prices[item.id]?.customName ?? item.name}</span>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-xs text-gray-400">CHF</span>
                       <input type="number" step="0.5" min="0"
