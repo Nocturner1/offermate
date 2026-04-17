@@ -429,7 +429,7 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
               </button>
               {offer.email && (
                 <a
-                  href={`mailto:${offer.email}?subject=Ihre%20Anfrage%20Hotel%20Alpenblick&body=${encodeURIComponent(offer.followUpEmail)}`}
+                  href={`mailto:${offer.email}?subject=${encodeURIComponent(`Ihre Anfrage ${offer.hotelInfo?.name || ''}`)}&body=${encodeURIComponent(offer.followUpEmail)}`}
                   className="btn-primary text-xs py-1 px-2.5 no-underline"
                 >
                   Per E-Mail öffnen

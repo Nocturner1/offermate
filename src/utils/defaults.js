@@ -158,13 +158,27 @@ STORNIERUNG HOTEL:
     website:       'www.3koenige-entlebuch.ch',
     contactPerson: 'Team Drei Könige',
     prices: {
-      overnight_classic: { unitPrice: 119 },
-      overnight_premium: { unitPrice: 139 },
-      dinner:            { unitPrice: 79 },
-      dinner_4gang:      { unitPrice: 89 },
-      lunch_flammi:      { unitPrice: 54 },
-      microphone:        { unitPrice: 30 },
-      pinboard:          { unitPrice: 30 },
+      room_wattawis:    { customName: 'Drei Könige Saal (270m²)' },
+      room_weinkeller:  { customName: 'Separee (Kleingruppen bis 8 PAX)' },
+      room_buero:       { customName: 'Kleines Meetingzimmer' },
+      overnight_classic: { unitPrice: 119, customName: 'Übernachtung DZ inkl. Frühstück (Mai–Okt)' },
+      overnight_premium: { unitPrice: 139, customName: 'Übernachtung DZ inkl. Frühstück (Jul–Aug)' },
+      welcome_coffee:   { customName: 'Begrüssungskaffee & Gipfeli' },
+      lunch_veg:        { customName: 'Lunch 2-Gang (Vegi oder Fleisch)' },
+      lunch_meat:       { unitPrice: 0, customName: 'Fleischoption (im Lunch-Preis inkl.)' },
+      lunch_flammi:     { unitPrice: 54, customName: 'Abendessen Pizzeria Da Schibi 3-Gang' },
+      lunch_sandwich:   { unitPrice: 65, customName: 'Abendessen Pizzeria Da Schibi 4-Gang' },
+      lunch_dessert:    { customName: 'Dessert zum Lunch' },
+      dinner:           { unitPrice: 79, customName: 'Abendessen Biosphäre Restaurant 3-Gang' },
+      dinner_4gang:     { unitPrice: 89, customName: 'Abendessen Biosphäre Restaurant 4-Gang' },
+      schokokick:       { customName: 'Nervennahrung im Raum (Schüssel)' },
+      coffee_break_1:   { customName: '1× Kaffeepause inkl. Snacks' },
+      coffee_break_2:   { customName: '2× Kaffeepausen inkl. Snacks' },
+      smoothie:         { customName: 'Smoothie zur Kaffeepause' },
+      aperitif:         { customName: 'Hausapéro' },
+      pinboard:         { unitPrice: 30, customName: 'Zusätzliche Pinnwand / Whiteboard' },
+      microphone:       { unitPrice: 30, customName: 'Mikrofon (zusätzlich)' },
+      conference_tech:  { customName: 'Konferenz-Technik Set (Webcam + Mikros)' },
     },
     notes: `ALLGEMEIN (Landgasthof Drei Könige, Schüpfheim, Entlebuch):
 • 22 Zimmer auf 2 Stockwerke, Frühstück 07:00–10:00 Uhr
@@ -313,7 +327,7 @@ export function buildItems(customPrices = {}) {
     quantityOverride: null,
     paxOverride:      null,
     quantity:         1,
-    customName:       null,
+    customName:       customPrices[def.id]?.customName ?? null,
   }))
 }
 
