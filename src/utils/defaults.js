@@ -85,6 +85,11 @@ export const DEFAULT_HOTELS = [
     website:       'alpenblick-weggis.ch',
     contactPerson: 'Team Alpenblick',
     logo:          '/logo-alpenblick.png',
+    calendarRooms: [
+      { id: 'room_wattawis',   short: 'Wattawis'   },
+      { id: 'room_weinkeller', short: 'Weinkeller' },
+      { id: 'room_buero',      short: 'Büro'       },
+    ],
     notes: `ZIMMER (30 Zimmer, 52 Betten):
 • EZ Dorfblick (102,115,202,215): ab CHF 79, 90cm Bett, kein Balkon
 • EZ Seeblick (103,114,203,214): ab CHF 99, 140cm Bett, Balkon
@@ -154,6 +159,11 @@ STORNIERUNG HOTEL:
     website:       'www.wetterhorn-hasliberg.ch',
     contactPerson: 'Team Wetterhorn',
     logo:          '/logo-wetterhorn.png',
+    calendarRooms: [
+      { id: 'room_wattawis',   short: 'Wattawis'   },
+      { id: 'room_weinkeller', short: 'Weinkeller' },
+      { id: 'room_buero',      short: 'Büro'       },
+    ],
     template: { ...DEFAULT_TEMPLATE, signatureTitle: 'Wetterhorn Hasliberg', signatureEmail: 'info@wetterhorn-hasliberg.ch', signaturePhone: '+41 33 972 90 90' },
   }),
   createNewHotel({
@@ -165,6 +175,11 @@ STORNIERUNG HOTEL:
     website:       'www.3koenige-entlebuch.ch',
     contactPerson: 'Team Drei Könige',
     logo:          '/logo-dreikoenige.png',
+    calendarRooms: [
+      { id: 'room_wattawis',   short: 'Saal'    },
+      { id: 'room_weinkeller', short: 'Separee' },
+      { id: 'room_buero',      short: 'Meeting' },
+    ],
     prices: {
       room_wattawis:    { customName: 'Drei Könige Saal (270m²)' },
       room_weinkeller:  { customName: 'Separee (Kleingruppen bis 8 PAX)' },

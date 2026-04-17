@@ -18,6 +18,26 @@ function InlineInput({ value, onChange, type = 'text', className = '', placehold
   )
 }
 
+// ─── German date input (shows DD.MM.YYYY, opens native calendar picker) ──────
+function GermanDateInput({ value, onChange, min, error, className = '' }) {
+  const display = value ? value.split('-').reverse().join('.') : ''
+  return (
+    <div className={`relative input-field cursor-pointer select-none ${error ? 'border-red-400 bg-red-50' : ''} ${className}`}
+         style={{ minWidth: '130px' }}>
+      <span className={`text-sm pointer-events-none ${!display ? 'text-gray-400' : ''}`}>
+        {display || 'TT.MM.JJJJ'}
+      </span>
+      <input
+        type="date"
+        value={value || ''}
+        min={min}
+        onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+    </div>
+  )
+}
+
 // ─── Required field indicator ──────────────────────────────────────────────
 function RequiredDot() {
   return <span className="text-red-500 ml-0.5">*</span>
@@ -230,11 +250,11 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
               <InlineInput value={offer.eventTitle} onChange={v => set('eventTitle', v)} placeholder="Jahresmeeting" />
             </FieldRow>
             <FieldRow label={<>Datum <RequiredDot /></>}>
-              <div className="flex gap-2">
-                <InlineInput value={offer.eventDate} onChange={handleEventDateChange} type="date"
+              <div className="flex items-center gap-2">
+                <GermanDateInput value={offer.eventDate} onChange={handleEventDateChange}
                   min={today} error={!offer.eventDate} />
-                <span className="pt-1.5 text-sm text-gray-400">bis</span>
-                <InlineInput value={offer.eventEndDate} onChange={handleEndDateChange} type="date"
+                <span className="text-sm text-gray-400">bis</span>
+                <GermanDateInput value={offer.eventEndDate} onChange={handleEndDateChange}
                   min={offer.eventDate || today} />
               </div>
             </FieldRow>

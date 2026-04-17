@@ -25,6 +25,13 @@ DATEN-REGELN:
 - tagesablauf: nur befüllen wenn konkrete Zeitangaben in der Mail stehen
 - warnings: ["PAX nicht angegeben – bitte nachfragen"] wenn PAX fehlt; ["Datum fehlt – bitte nachfragen"] wenn Datum fehlt; ["Vorjahresbuchung prüfen"] wenn Stammkunde
 
+ÜBERNACHTUNG-REGELN (requestedServices):
+- Wenn "Übernachtung", "übernachten", "Zimmer" oder requestType="overnight"/"multi_day_seminar" erwähnt: IMMER mindestens eine overnight_* ID in requestedServices aufnehmen
+- Standardmässig overnight_premium wählen wenn keine Saison erkennbar
+- overnight_classic = günstige Saison (Nov–Apr), overnight_premium = Hauptsaison (Mai–Jun, Sep–Okt), overnight_peak = Hochsaison (Jul–Aug)
+- overnight_ez nur wenn explizit Einzelzimmer gewünscht; overnight_comfort/nostalgie/suite nur wenn explizit erwähnt
+- Bei mehrtägigen Seminaren mit Übernachtung: room_wattawis UND overnight_premium standardmässig in requestedServices
+
 RÜCKFRAGE-REGELN (followUpEmail):
 Wenn PAX oder Datum fehlen, generiere eine höfliche, kurze Rückfrage-Mail in derselben Sprache wie die Anfrage.
 Stil: persönlich (du/Sie passend zur Anfrage), direkt, max. 3-4 Sätze.

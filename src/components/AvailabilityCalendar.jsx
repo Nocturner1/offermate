@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Rooms tracked in the calendar
+// Fallback rooms (used if hotel has no calendarRooms defined)
 export const CALENDAR_ROOMS = [
   { id: 'room_wattawis',   name: 'Raum Wattawis',  short: 'Wattawis'   },
   { id: 'room_weinkeller', name: 'Weinkeller',      short: 'Weinkeller' },
@@ -74,6 +74,7 @@ export default function AvailabilityCalendar({ availability, setAvailability, ho
   const [month, setMonth] = useState(today.getMonth())
 
   const hotel = hotels.find(h => h.id === selectedHotelId) ?? hotels[0]
+  const activeRooms = hotel?.calendarRooms ?? CALENDAR_ROOMS
 
   // ─── Navigation ───────────────────────────────────────────────────────────
   const prevMonth = () => month === 0  ? (setYear(y => y-1), setMonth(11))  : setMonth(m => m-1)
@@ -106,8 +107,8 @@ export default function AvailabilityCalendar({ availability, setAvailability, ho
   // Bulk mark a whole day
   const handleDayHeader = (date) => {
     if (!hotel) return
-    const allBooked = CALENDAR_ROOMS.every(r => getAvailStatus(availability, hotel.id, date, r.id) === 'booked')
-    CALENDAR_ROOMS.forEach(r => {
+    const allBooked = activeRooms.every(r => getAvailStatus(availability, hotel.id, date, r.id) === 'booked')
+    activeRooms.forEach(r => {
       setAvailability(prev => setRoomStatus(prev, hotel.id, date, r.id, allBooked ? 'free' : 'booked'))
     })
   }
@@ -129,7 +130,7 @@ export default function AvailabilityCalendar({ availability, setAvailability, ho
 
   // Stats for the month
   const bookedCount = days.reduce((acc, d) =>
-    acc + CALENDAR_ROOMS.filter(r => getAvailStatus(availability, hotel?.id, d.date, r.id) === 'booked').length, 0)
+    acc + activeRooms.filter(r => getAvailStatus(availability, hotel?.id, d.date, r.id) === 'booked').length, 0)
 
   return (
     <div className="flex flex-col gap-4">
@@ -231,7 +232,7 @@ export default function AvailabilityCalendar({ availability, setAvailability, ho
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {CALENDAR_ROOMS.map((room, roomIdx) => (
+              {activeRooms.map((room, roomIdx) => (
                 <tr key={room.id} className={roomIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                   {/* Room label — sticky */}
                   <td className={`sticky left-0 z-10 px-3 py-1.5 border-r border-gray-200 ${roomIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
