@@ -255,7 +255,15 @@ export default function App() {
     try {
       const parsed = await parseEmailWithClaude(emailText, apiKey, activeHotel)
       const hotel  = hotels.find(h => h.id === selectedHotelId) ?? hotels[0]
-      const items  = applyDetectedServices(buildItems(hotel.prices), parsed.requestedServices || [], parsed.isAgency || false)
+      const numberOfDays   = parsed.numberOfDays || 1
+      const numberOfNights = parsed.numberOfNights ?? Math.max(0, numberOfDays - 1)
+      // Build items and apply nights as quantityOverride on all overnight items
+      const baseItems = applyDetectedServices(buildItems(hotel.prices), parsed.requestedServices || [], parsed.isAgency || false)
+      const items = baseItems.map(i =>
+        i.category === 'overnight'
+          ? { ...i, quantityOverride: numberOfNights > 0 ? numberOfNights : null }
+          : i
+      )
       setOffer({
         ...EMPTY_OFFER(hotelToInfo(hotel), items),
         firstName: parsed.firstName || '', lastName: parsed.lastName || '',
@@ -263,7 +271,7 @@ export default function App() {
         isAgency: parsed.isAgency || false, isReturningCustomer: parsed.isReturningCustomer || false,
         language: parsed.language || 'de', eventTitle: parsed.eventTitle || '',
         eventDate: parsed.eventDate || '', eventEndDate: parsed.eventEndDate || '',
-        numberOfDays: parsed.numberOfDays || 1, pax: parsed.pax || null,
+        numberOfDays, numberOfNights, pax: parsed.pax || null,
         requestType: parsed.requestType || 'day_seminar',
         billingAddress: parsed.billingAddress || '', invoiceEmail: parsed.invoiceEmail || '',
         specialRequests: parsed.specialRequests || '', introText: parsed.introText || '',

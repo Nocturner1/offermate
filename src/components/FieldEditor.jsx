@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { calcItemTotal, calcSubtotal, calcSurcharge, calcTotal, fmtCHF, fmtDate } from '../utils/priceCalculator.js'
 import { CATEGORY_LABELS, EMPTY_SCHEDULE_ROW, PRICE_CATALOG } from '../utils/defaults.js'
 import { CALENDAR_ROOMS, AVAIL_STATUS, getAvailStatus } from './AvailabilityCalendar.jsx'
@@ -18,22 +18,84 @@ function InlineInput({ value, onChange, type = 'text', className = '', placehold
   )
 }
 
-// ─── German date input (shows DD.MM.YYYY, opens native calendar picker) ──────
+// ─── German date input — real text field (TT.MM.JJJJ) + calendar icon ────────
 function GermanDateInput({ value, onChange, min, error, className = '' }) {
-  const display = value ? value.split('-').reverse().join('.') : ''
+  const [text, setText] = useState('')
+  const nativeRef = useRef(null)
+
+  // Sync text display when value changes externally (e.g. from Claude)
+  useEffect(() => {
+    setText(value ? value.split('-').reverse().join('.') : '')
+  }, [value])
+
+  const parseAndEmit = (raw) => {
+    const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    if (m) {
+      const iso = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+      if (!isNaN(new Date(iso + 'T12:00:00')) && (!min || iso >= min)) {
+        onChange(iso)
+        return iso
+      }
+    }
+    return null
+  }
+
+  const handleChange = (e) => {
+    const raw = e.target.value
+    setText(raw)
+    if (raw === '') { onChange(''); return }
+    if (raw.length === 10) parseAndEmit(raw)
+  }
+
+  const handleBlur = () => {
+    const iso = parseAndEmit(text)
+    if (iso) {
+      setText(iso.split('-').reverse().join('.'))
+    } else {
+      setText(value ? value.split('-').reverse().join('.') : '')
+    }
+  }
+
+  const openPicker = () => {
+    const el = nativeRef.current
+    if (!el) return
+    try { el.showPicker() } catch { el.click() }
+  }
+
   return (
-    <div className={`relative input-field cursor-pointer select-none ${error ? 'border-red-400 bg-red-50' : ''} ${className}`}
-         style={{ minWidth: '130px' }}>
-      <span className={`text-sm pointer-events-none ${!display ? 'text-gray-400' : ''}`}>
-        {display || 'TT.MM.JJJJ'}
-      </span>
+    <div className={`relative flex items-center ${className}`} style={{ minWidth: '140px' }}>
       <input
+        type="text"
+        inputMode="numeric"
+        value={text}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        placeholder="TT.MM.JJJJ"
+        maxLength={10}
+        className={`input-field text-sm w-full pr-8 ${error ? 'border-red-400 bg-red-50 focus:ring-red-400' : ''}`}
+      />
+      {/* Hidden native picker — triggered by calendar icon */}
+      <input
+        ref={nativeRef}
         type="date"
         value={value || ''}
         min={min}
         onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        className="sr-only"
+        tabIndex={-1}
       />
+      <button
+        type="button"
+        onClick={openPicker}
+        className="absolute right-2 text-gray-400 hover:text-gray-600 transition-colors"
+        tabIndex={-1}
+        title="Kalender öffnen"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+      </button>
     </div>
   )
 }
@@ -84,6 +146,13 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
 
   const set = (key, val) => setOffer(prev => ({ ...prev, [key]: val }))
 
+  // Apply numberOfNights as quantityOverride on all overnight items
+  const applyNights = (items, nights) =>
+    items.map(i => i.category === 'overnight'
+      ? { ...i, quantityOverride: nights > 0 ? nights : null }
+      : i
+    )
+
   const handleEventDateChange = (v) => {
     setOffer(prev => {
       const days = prev.numberOfDays || 1
@@ -95,16 +164,39 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
   const handleDaysChange = (v) => {
     setOffer(prev => {
       const days = v || 1
+      const nights = Math.max(0, days - 1)
       const endDate = prev.eventDate && days > 1 ? addDays(prev.eventDate, days - 1) : ''
-      return { ...prev, numberOfDays: v, eventEndDate: endDate }
+      return {
+        ...prev,
+        numberOfDays: v,
+        numberOfNights: nights,
+        eventEndDate: endDate,
+        items: applyNights(prev.items, nights),
+      }
     })
+  }
+
+  const handleNightsChange = (v) => {
+    const nights = v == null || v === '' ? 0 : Math.max(0, Number(v))
+    setOffer(prev => ({
+      ...prev,
+      numberOfNights: nights,
+      items: applyNights(prev.items, nights),
+    }))
   }
 
   const handleEndDateChange = (v) => {
     setOffer(prev => {
       if (prev.eventDate && v && v >= prev.eventDate) {
         const diff = Math.round((new Date(v + 'T12:00:00') - new Date(prev.eventDate + 'T12:00:00')) / 86400000) + 1
-        return { ...prev, eventEndDate: v, numberOfDays: Math.max(1, diff) }
+        const nights = Math.max(0, diff - 1)
+        return {
+          ...prev,
+          eventEndDate: v,
+          numberOfDays: Math.max(1, diff),
+          numberOfNights: nights,
+          items: applyNights(prev.items, nights),
+        }
       }
       return { ...prev, eventEndDate: v }
     })
@@ -260,6 +352,17 @@ export default function FieldEditor({ offer, setOffer, onNext, onBack, availabil
             </FieldRow>
             <FieldRow label="Anzahl Tage">
               <InlineInput value={offer.numberOfDays} onChange={handleDaysChange} type="number" placeholder="1" min="1" />
+            </FieldRow>
+            <FieldRow label="Anzahl Nächte">
+              <div className="flex items-center gap-2">
+                <InlineInput value={offer.numberOfNights ?? ''} onChange={handleNightsChange} type="number" placeholder="0" min="0"
+                  className="w-24" />
+                {offer.numberOfDays > 1 && offer.numberOfNights == null && (
+                  <span className="text-xs text-amber-600">
+                    → auto: {Math.max(0, (offer.numberOfDays || 1) - 1)} Nächte
+                  </span>
+                )}
+              </div>
             </FieldRow>
 
             {/* ── Availability check ── */}

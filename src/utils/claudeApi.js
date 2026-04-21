@@ -25,12 +25,13 @@ DATEN-REGELN:
 - tagesablauf: nur befüllen wenn konkrete Zeitangaben in der Mail stehen
 - warnings: ["PAX nicht angegeben – bitte nachfragen"] wenn PAX fehlt; ["Datum fehlt – bitte nachfragen"] wenn Datum fehlt; ["Vorjahresbuchung prüfen"] wenn Stammkunde
 
-ÜBERNACHTUNG-REGELN (requestedServices):
+ÜBERNACHTUNG-REGELN (requestedServices + numberOfNights):
 - Wenn "Übernachtung", "übernachten", "Zimmer" oder requestType="overnight"/"multi_day_seminar" erwähnt: IMMER mindestens eine overnight_* ID in requestedServices aufnehmen
 - Standardmässig overnight_premium wählen wenn keine Saison erkennbar
 - overnight_classic = günstige Saison (Nov–Apr), overnight_premium = Hauptsaison (Mai–Jun, Sep–Okt), overnight_peak = Hochsaison (Jul–Aug)
 - overnight_ez nur wenn explizit Einzelzimmer gewünscht; overnight_comfort/nostalgie/suite nur wenn explizit erwähnt
 - Bei mehrtägigen Seminaren mit Übernachtung: room_wattawis UND overnight_premium standardmässig in requestedServices
+- numberOfNights: Anzahl Übernachtungen extrahieren. "3 Tage 2 Nächte" → numberOfNights=2. Wenn nur Tage angegeben: numberOfNights = numberOfDays - 1. Wenn kein Overnight: numberOfNights = 0
 
 RÜCKFRAGE-REGELN (followUpEmail):
 Wenn PAX oder Datum fehlen, generiere eine höfliche, kurze Rückfrage-Mail in derselben Sprache wie die Anfrage.
@@ -65,6 +66,7 @@ Gib exakt dieses JSON zurück (alle Felder, fehlende als null):
   "eventDate": "YYYY-MM-DD"|null,
   "eventEndDate": "YYYY-MM-DD"|null,
   "numberOfDays": number|null,
+  "numberOfNights": number|null,
   "pax": number|null,
   "requestType": "day_seminar"|"multi_day_seminar"|"overnight"|"meeting",
   "eventTitle": string|null,
