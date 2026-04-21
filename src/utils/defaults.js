@@ -148,7 +148,7 @@ STORNIERUNG HOTEL:
 • Non Ref (Booking/SimpleBooking): keine Rückerstattung
 • Normal bis 3 Tage vor Anreise: keine Rückerstattung
 • Normal ab 4 Tage vor Anreise: volle Rückerstattung`,
-    template: { ...DEFAULT_TEMPLATE, primaryColor: '#8C1528', signatureTitle: 'Hotel Alpenblick Weggis', signatureEmail: 'info@alpenblick-weggis.ch', signaturePhone: '041 399 05 05' },
+    template: { ...DEFAULT_TEMPLATE, primaryColor: '#8A1228', signatureTitle: 'Hotel Alpenblick Weggis', signatureEmail: 'info@alpenblick-weggis.ch', signaturePhone: '041 399 05 05' },
   }),
   createNewHotel({
     id:            'hotel_wetterhorn',
