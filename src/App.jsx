@@ -28,6 +28,7 @@ const EMPTY_OFFER = (hotelInfo, items) => ({
   eventDate:           '',
   eventEndDate:        '',
   numberOfDays:        1,
+  numberOfNights:      0,
   pax:                 null,
   requestType:         'day_seminar',
   billingAddress:      '',

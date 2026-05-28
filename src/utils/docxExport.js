@@ -14,11 +14,6 @@ function hexColor(color) {
   return /^[0-9A-F]{6}$/.test(raw) ? raw : '2D5016'
 }
 
-function lighten(hex) {
-  // Returns a very light tint for table alternating rows
-  return 'F8F8F8'
-}
-
 function txt(text, opts = {}) {
   return new TextRun({ text: String(text ?? ''), font: 'Arial', ...opts })
 }
@@ -246,33 +241,21 @@ export async function generateDocx(offer) {
     }
 
     const fill = idx % 2 === 0 ? 'FFFFFF' : 'F9FAFB'
-    const cellStyle = { shading: { fill, type: ShadingType.CLEAR } }
+    const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }
+    const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder }
+    const mkSvcCell = (children, width) => new TableCell({
+      children,
+      shading: { fill, type: ShadingType.CLEAR },
+      margins: { top: 70, bottom: 70, left: 140, right: 140 },
+      width: { size: width, type: WidthType.DXA },
+      borders,
+    })
     return new TableRow({
       children: [
-        new TableCell({
-          children: [para([txt(item.customName || item.name, { size: 18 })])],
-          ...cellStyle,
-          margins: { top: 70, bottom: 70, left: 140, right: 140 },
-          width: { size: 4200, type: WidthType.DXA },
-        }),
-        new TableCell({
-          children: [para([txt(`${fmtCHF(displayPrice)} ${item.unit}`, { size: 18 })], { alignment: AlignmentType.RIGHT })],
-          ...cellStyle,
-          margins: { top: 70, bottom: 70, left: 140, right: 140 },
-          width: { size: 2000, type: WidthType.DXA },
-        }),
-        new TableCell({
-          children: [para([txt(qtyLabel, { size: 18 })], { alignment: AlignmentType.CENTER })],
-          ...cellStyle,
-          margins: { top: 70, bottom: 70, left: 140, right: 140 },
-          width: { size: 1600, type: WidthType.DXA },
-        }),
-        new TableCell({
-          children: [para([txt(fmtCHF(itemTotal), { size: 18, bold: true })], { alignment: AlignmentType.RIGHT })],
-          ...cellStyle,
-          margins: { top: 70, bottom: 70, left: 140, right: 140 },
-          width: { size: 1400, type: WidthType.DXA },
-        }),
+        mkSvcCell([para([txt(item.customName || item.name, { size: 18 })])], 4200),
+        mkSvcCell([para([txt(`${fmtCHF(displayPrice)} ${item.unit}`, { size: 18 })], { alignment: AlignmentType.RIGHT })], 2000),
+        mkSvcCell([para([txt(qtyLabel, { size: 18 })], { alignment: AlignmentType.CENTER })], 1600),
+        mkSvcCell([para([txt(fmtCHF(itemTotal), { size: 18, bold: true })], { alignment: AlignmentType.RIGHT })], 1400),
       ],
     })
   })
