@@ -1,346 +1,566 @@
 import {
   Document, Packer, Paragraph, Table, TableRow, TableCell,
-  TextRun, HeadingLevel, AlignmentType, WidthType, BorderStyle,
-  ShadingType, Header, ImageRun,
+  TextRun, AlignmentType, WidthType, BorderStyle,
+  ShadingType, ImageRun,
 } from 'docx'
 import { saveAs } from 'file-saver'
 import { calcItemTotal, calcSubtotal, calcSurcharge, calcTotal, fmtCHF, fmtDate } from './priceCalculator.js'
-import { CATEGORY_LABELS } from './defaults.js'
 
-const ALPINE_GREEN = '1e6f53'
-const LIGHT_GREEN  = 'e8f4ef'
-const GRAY         = 'f3f4f6'
-const BORDER_NONE  = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
-const ALL_NONE     = { top: BORDER_NONE, bottom: BORDER_NONE, left: BORDER_NONE, right: BORDER_NONE }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hexColor(color) {
+  // Strip # if present, fallback to dark green
+  return (color || '#2D5016').replace('#', '')
+}
+
+function lighten(hex) {
+  // Returns a very light tint for table alternating rows
+  return 'F8F8F8'
+}
 
 function txt(text, opts = {}) {
-  return new TextRun({ text: text ?? '', ...opts })
+  return new TextRun({ text: String(text ?? ''), font: 'Arial', ...opts })
 }
 
-function cell(children, opts = {}) {
-  const paragraphs = Array.isArray(children) ? children : [
-    new Paragraph({ children: Array.isArray(children) ? children : [children] })
+function para(children, opts = {}) {
+  const runs = Array.isArray(children) ? children : [children]
+  return new Paragraph({ children: runs, ...opts })
+}
+
+const BORDER_NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
+const ALL_NONE    = { top: BORDER_NONE, bottom: BORDER_NONE, left: BORDER_NONE, right: BORDER_NONE, insideH: BORDER_NONE, insideV: BORDER_NONE }
+
+function hr(color = 'DDDDDD') {
+  return para([], {
+    border: { bottom: { style: BorderStyle.SINGLE, size: 4, color } },
+    spacing: { before: 80, after: 80 },
+  })
+}
+
+function spacer(before = 200) {
+  return para([], { spacing: { before } })
+}
+
+function sectionTitle(title, color) {
+  return para([txt(title, { bold: true, size: 22, color: hexColor(color) })], {
+    spacing: { before: 280, after: 80 },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: hexColor(color) } },
+  })
+}
+
+function dataCell(content, opts = {}) {
+  const children = Array.isArray(content) ? content : [
+    para([txt(String(content ?? ''), { size: 18, ...opts })])
   ]
   return new TableCell({
-    children: Array.isArray(paragraphs[0]) ? paragraphs : paragraphs,
-    ...opts,
+    children,
+    margins: { top: 60, bottom: 60, left: 140, right: 140 },
+    borders: {
+      top:    { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      left:   { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      right:  { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+    },
   })
 }
 
-function headerCell(text, shading = ALPINE_GREEN) {
+function headerCell(text, primaryHex) {
   return new TableCell({
-    children: [new Paragraph({
-      children: [txt(text, { bold: true, color: 'FFFFFF', size: 18 })],
-    })],
-    shading: { fill: shading, type: ShadingType.CLEAR },
-    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+    children: [para([txt(text, { bold: true, color: 'FFFFFF', size: 18 })])],
+    shading: { fill: primaryHex, type: ShadingType.CLEAR },
+    margins: { top: 80, bottom: 80, left: 140, right: 140 },
+    borders: {
+      top:    { style: BorderStyle.SINGLE, size: 1, color: primaryHex },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: primaryHex },
+      left:   { style: BorderStyle.SINGLE, size: 1, color: primaryHex },
+      right:  { style: BorderStyle.SINGLE, size: 1, color: primaryHex },
+    },
   })
 }
 
-function dataCell(text, opts = {}) {
+function labelCell(text, shade = 'F3F4F6') {
   return new TableCell({
-    children: [new Paragraph({
-      children: [txt(String(text ?? ''), { size: 18, ...opts })],
-    })],
-    margins: { top: 60, bottom: 60, left: 120, right: 120 },
+    children: [para([txt(text, { bold: true, size: 18 })])],
+    shading: { fill: shade, type: ShadingType.CLEAR },
+    margins: { top: 60, bottom: 60, left: 140, right: 140 },
+    borders: {
+      top:    { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      left:   { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+      right:  { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+    },
+    width: { size: 3200, type: WidthType.DXA },
   })
 }
 
-function section(title) {
-  return new Paragraph({
-    children: [txt(title, { bold: true, size: 22, color: ALPINE_GREEN })],
-    spacing: { before: 300, after: 100 },
-  })
+// Fetch logo from URL and return ArrayBuffer (or null if not available)
+async function fetchLogo(logoUrl) {
+  if (!logoUrl) return null
+  try {
+    const res = await fetch(logoUrl)
+    if (!res.ok) return null
+    return await res.arrayBuffer()
+  } catch {
+    return null
+  }
 }
 
-function hr() {
-  return new Paragraph({
-    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'cccccc' } },
-    spacing: { before: 100, after: 100 },
-    children: [],
-  })
-}
+// ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateDocx(offer) {
   const {
     firstName, lastName, email, phone, company,
-    eventTitle, eventDate, eventEndDate, numberOfDays, pax,
+    eventTitle, eventDate, eventEndDate, numberOfDays, numberOfNights, pax,
     billingAddress, invoiceEmail, paymentType, optionDate,
     language, isAgency, items, schedule, hotelInfo, specialRequests,
+    introText,
   } = offer
 
-  const lang = language === 'en' ? 'en' : 'de'
-  const isDE = lang === 'de'
-  const gPax  = pax || 0
-  const gDays = numberOfDays || 1
+  const lang    = ['de','en','fr','es'].includes(language) ? language : 'de'
+  const isDE    = lang === 'de'
+  const gPax    = pax || 0
+  const gDays   = numberOfDays || 1
+  const gNights = numberOfNights ?? Math.max(0, gDays - 1)
 
-  const greetingMap = { de: `Hallo ${firstName || ''}`, en: `Dear ${firstName || ''},`, fr: `Bonjour ${firstName || ''},`, es: `Estimado/a ${firstName || ''},` }
-  const greeting    = greetingMap[lang] ?? greetingMap.de
-  const introText   = offer.introText || ''
+  const template     = hotelInfo?.template ?? {}
+  const primaryColor = template.primaryColor || '#2D5016'
+  const primaryHex   = hexColor(primaryColor)
 
-  const subtotal  = calcSubtotal(items, gPax, gDays)
-  const surcharge = calcSurcharge(items, gPax, gDays)
-  const total     = calcTotal(items, gPax, gDays)
+  const greetingMode = template.greeting || 'du'
+  const sigName      = template.signatureName  || hotelInfo?.contactPerson || ''
+  const sigTitle     = template.signatureTitle || ''
+  const sigPhone     = template.signaturePhone || hotelInfo?.phone || ''
+  const sigEmail     = template.signatureEmail || hotelInfo?.email || ''
+
+  const greetingMap = {
+    de: greetingMode === 'Sie' ? `Guten Tag ${firstName || ''} ${lastName || ''},` : `Hallo ${firstName || ''},`,
+    en: `Dear ${firstName || ''} ${lastName || ''},`,
+    fr: `Bonjour ${firstName || ''},`,
+    es: `Estimado/a ${firstName || ''},`,
+  }
+  const greeting = greetingMap[lang] ?? greetingMap.de
+
+  const closingMap = {
+    de: greetingMode === 'Sie' ? 'Freundliche Grüsse' : 'Herzliche Grüsse',
+    en: 'Kind regards',
+    fr: 'Cordialement',
+    es: 'Atentamente',
+  }
+  const closing = closingMap[lang] ?? closingMap.de
+
+  const titleMap = {
+    de: `Deine Offerte aus dem ${hotelInfo?.name || 'Hotel'}`,
+    en: `Your offer from ${hotelInfo?.name || 'Hotel'}`,
+    fr: `Votre offre de ${hotelInfo?.name || 'Hotel'}`,
+    es: `Su oferta de ${hotelInfo?.name || 'Hotel'}`,
+  }
+  const offerTitle = titleMap[lang] ?? titleMap.de
 
   const enabledItems = items.filter(i => i.enabled && i.type !== 'percentage')
-  const agencyItem   = items.find(i => i.id === 'agency_surcharge' && i.enabled)
+  const subtotal     = calcSubtotal(items, gPax, gDays, isAgency)
+  const surcharge    = calcSurcharge(items, gPax, gDays, isAgency)
+  const total        = calcTotal(items, gPax, gDays, isAgency)
 
-  // ─── Event Details Table ───
-  const eventRows = [
-    [isDE ? 'Anlass' : 'Event', eventTitle || '—'],
-    [isDE ? 'Datum' : 'Date', eventDate ? fmtDate(eventDate, lang) + (eventEndDate ? ` – ${fmtDate(eventEndDate, lang)}` : '') : '—'],
-    [isDE ? 'Anzahl Tage' : 'Days', String(numberOfDays || 1)],
-    [isDE ? 'Anzahl Personen' : 'Persons', String(pax || '—')],
-    [isDE ? 'Rechnungsadresse' : 'Billing Address', billingAddress || '—'],
-    [isDE ? 'E-Mail Rechnung' : 'Invoice Email', invoiceEmail || email || '—'],
-  ]
+  // ─── Logo ─────────────────────────────────────────────────────────────────
+  const logoData = await fetchLogo(hotelInfo?.logo)
+
+  // ─── Contact + Event detail table ─────────────────────────────────────────
+  const TABLE_WIDTH = 9200 // DXA
+
+  const detailRows = [
+    [isDE ? 'Firma'           : 'Company',        company || '—'],
+    [isDE ? 'Name'            : 'Name',            `${firstName || ''} ${lastName || ''}`.trim() || '—'],
+    [isDE ? 'Telefon'         : 'Phone',           phone || '—'],
+    [isDE ? 'E-Mail'          : 'Email',           email || '—'],
+    [''],
+    [isDE ? 'Anlass'          : 'Event',           eventTitle || '—'],
+    [isDE ? 'Datum'           : 'Date',            eventDate ? fmtDate(eventDate, lang) + (eventEndDate ? ` – ${fmtDate(eventEndDate, lang)}` : '') : '—'],
+    [isDE ? 'Anzahl Tage'     : 'Days',            String(gDays)],
+    ...(gNights > 0 ? [[isDE ? 'Anzahl Nächte' : 'Nights', String(gNights)]] : []),
+    [isDE ? 'Personen (PAX)'  : 'Persons',         pax ? String(pax) : '—'],
+    [''],
+    [isDE ? 'Rechnungsadresse': 'Billing Address', billingAddress || company || '—'],
+    [isDE ? 'E-Mail Rechnung' : 'Invoice Email',   invoiceEmail || email || '—'],
+  ].filter(r => r.length > 0)
 
   const detailTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: eventRows.map(([k, v]) => new TableRow({
-      children: [
-        new TableCell({
-          children: [new Paragraph({ children: [txt(k, { bold: true, size: 18 })] })],
-          width: { size: 30, type: WidthType.PERCENTAGE },
-          shading: { fill: GRAY, type: ShadingType.CLEAR },
-          margins: { top: 60, bottom: 60, left: 120, right: 120 },
-        }),
-        dataCell(v),
-      ],
-    })),
-  })
-
-  // ─── Services Table ───
-  const serviceHeaderRow = new TableRow({
-    children: [
-      headerCell(isDE ? 'Leistung' : 'Service'),
-      headerCell(isDE ? 'Einzelpreis' : 'Unit Price'),
-      headerCell(isDE ? 'Menge/PAX' : 'Qty/PAX'),
-      headerCell('Total CHF'),
-    ],
-    tableHeader: true,
-  })
-
-  const serviceRows = enabledItems.map((item, idx) => {
-    const total = calcItemTotal(item, gPax, gDays)
-    const effectivePax  = item.paxOverride ?? gPax
-    const effectiveDays = item.quantityOverride ?? gDays
-
-    let qtyLabel = ''
-    switch (item.type) {
-      case 'per_person_per_day':
-      case 'per_person_per_day_min':
-        qtyLabel = `${effectivePax} Pers. × ${effectiveDays} Tag(e)`
-        break
-      case 'flat_per_day':
-        qtyLabel = `${effectiveDays} Tag(e)`
-        break
-      case 'flat_per_unit':
-        qtyLabel = `${item.quantity ?? 1} Stück`
-        break
-      case 'per_person':
-        qtyLabel = `${effectivePax} Pers.`
-        break
-    }
-
-    const fill = idx % 2 === 0 ? 'FFFFFF' : 'f9fafb'
-    return new TableRow({
-      children: [
-        new TableCell({
-          children: [new Paragraph({ children: [txt(item.customName || item.name, { size: 18 })] })],
-          shading: { fill, type: ShadingType.CLEAR },
-          margins: { top: 60, bottom: 60, left: 120, right: 120 },
-        }),
-        dataCell(`${item.unitPrice.toFixed(2)} ${item.unit}`),
-        dataCell(qtyLabel),
-        dataCell(total.toFixed(2), { bold: true }),
-      ],
-    })
-  })
-
-  const servicesTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [serviceHeaderRow, ...serviceRows],
-  })
-
-  // ─── Schedule Table ───
-  const scheduleRows = schedule.length > 0 ? [
-    new TableRow({
-      children: [
-        headerCell(isDE ? 'Zeit' : 'Time'),
-        headerCell(isDE ? 'Was' : 'Activity'),
-        headerCell(isDE ? 'Wo' : 'Location'),
-        headerCell('PAX'),
-      ],
-      tableHeader: true,
-    }),
-    ...schedule.map((row, idx) => new TableRow({
-      children: [
-        dataCell(row.time),
-        dataCell(row.activity),
-        dataCell(row.location),
-        dataCell(row.pax != null ? String(row.pax) : ''),
-      ],
-    })),
-  ] : null
-
-  // ─── Price Summary ───
-  const priceRows = [
-    [isDE ? 'Zwischentotal' : 'Subtotal', fmtCHF(subtotal)],
-    ...(agencyItem ? [[`Agentur-Aufschlag ${agencyItem.unitPrice}%`, fmtCHF(surcharge)]] : []),
-    [isDE ? 'GESAMTTOTAL (inkl. MWST)' : 'GRAND TOTAL (incl. VAT)', fmtCHF(total)],
-  ]
-
-  const priceTable = new Table({
-    width: { size: 60, type: WidthType.PERCENTAGE },
-    rows: priceRows.map(([k, v], idx) => {
-      const isLast = idx === priceRows.length - 1
+    width: { size: TABLE_WIDTH, type: WidthType.DXA },
+    columnWidths: [3200, 6000],
+    rows: detailRows.map(([k, v]) => {
+      if (!k && !v) {
+        // Empty separator row
+        return new TableRow({
+          children: [
+            new TableCell({
+              children: [para([])],
+              columnSpan: 2,
+              borders: ALL_NONE,
+              margins: { top: 40, bottom: 40, left: 0, right: 0 },
+            }),
+          ],
+        })
+      }
       return new TableRow({
         children: [
-          new TableCell({
-            children: [new Paragraph({ children: [txt(k, { bold: isLast, size: isLast ? 20 : 18, color: isLast ? ALPINE_GREEN : '000000' })] })],
-            shading: { fill: isLast ? LIGHT_GREEN : GRAY, type: ShadingType.CLEAR },
-            margins: { top: 80, bottom: 80, left: 120, right: 120 },
-          }),
-          new TableCell({
-            children: [new Paragraph({
-              children: [txt(v, { bold: isLast, size: isLast ? 20 : 18, color: isLast ? ALPINE_GREEN : '000000' })],
-              alignment: AlignmentType.RIGHT,
-            })],
-            shading: { fill: isLast ? LIGHT_GREEN : 'FFFFFF', type: ShadingType.CLEAR },
-            margins: { top: 80, bottom: 80, left: 120, right: 120 },
-          }),
+          labelCell(k),
+          dataCell(v),
         ],
       })
     }),
   })
 
-  // ─── AGB ───
-  const agbLines = isDE ? [
-    'Stornobedingungen:',
-    '• 0–5 Tage vor dem Anlass: 100% des Offerten-Betrages',
-    '• 6–14 Tage vor dem Anlass: 75% des Offerten-Betrages',
-    '• 15–30 Tage vor dem Anlass: 50% des Offerten-Betrages',
-    '• 31–60 Tage vor dem Anlass: 20% des Offerten-Betrages',
-  ] : [
-    'Cancellation Policy:',
-    '• 0–5 days before the event: 100% of the offer amount',
-    '• 6–14 days before the event: 75% of the offer amount',
-    '• 15–30 days before the event: 50% of the offer amount',
-    '• 31–60 days before the event: 20% of the offer amount',
+  // ─── Services Table ────────────────────────────────────────────────────────
+  const serviceHeaderRow = new TableRow({
+    children: [
+      headerCell(isDE ? 'Leistung'       : 'Service',    primaryHex),
+      headerCell(isDE ? 'Einzelpreis'    : 'Unit Price', primaryHex),
+      headerCell(isDE ? 'Menge / PAX'   : 'Qty / PAX',  primaryHex),
+      headerCell('Total CHF',                            primaryHex),
+    ],
+    tableHeader: true,
+  })
+
+  const serviceRows = enabledItems.map((item, idx) => {
+    const itemTotal      = calcItemTotal(item, gPax, gDays, isAgency)
+    const effectivePax   = item.paxOverride      ?? gPax
+    const effectiveDays  = item.quantityOverride ?? gDays
+    const displayPrice   = (isAgency && item.agencyUnitPrice != null) ? item.agencyUnitPrice : item.unitPrice
+
+    let qtyLabel = ''
+    switch (item.type) {
+      case 'per_person_per_day':
+      case 'per_person_per_day_min':
+        qtyLabel = `${effectivePax} Pers. × ${effectiveDays} ${isDE ? 'Tag(e)' : 'day(s)'}`
+        break
+      case 'flat_per_day':
+        qtyLabel = `${effectiveDays} ${isDE ? 'Tag(e)' : 'day(s)'}`
+        break
+      case 'flat_per_unit':
+        qtyLabel = `${item.quantity ?? 1} ${isDE ? 'Stück' : 'pcs'}`
+        break
+      case 'per_person':
+        qtyLabel = `${effectivePax} ${isDE ? 'Pers.' : 'pers.'}`
+        break
+    }
+
+    const fill = idx % 2 === 0 ? 'FFFFFF' : 'F9FAFB'
+    const cellStyle = { shading: { fill, type: ShadingType.CLEAR } }
+    return new TableRow({
+      children: [
+        new TableCell({
+          children: [para([txt(item.customName || item.name, { size: 18 })])],
+          ...cellStyle,
+          margins: { top: 70, bottom: 70, left: 140, right: 140 },
+          width: { size: 4200, type: WidthType.DXA },
+        }),
+        new TableCell({
+          children: [para([txt(`${fmtCHF(displayPrice)} ${item.unit}`, { size: 18 })], { alignment: AlignmentType.RIGHT })],
+          ...cellStyle,
+          margins: { top: 70, bottom: 70, left: 140, right: 140 },
+          width: { size: 2000, type: WidthType.DXA },
+        }),
+        new TableCell({
+          children: [para([txt(qtyLabel, { size: 18 })], { alignment: AlignmentType.CENTER })],
+          ...cellStyle,
+          margins: { top: 70, bottom: 70, left: 140, right: 140 },
+          width: { size: 1600, type: WidthType.DXA },
+        }),
+        new TableCell({
+          children: [para([txt(fmtCHF(itemTotal), { size: 18, bold: true })], { alignment: AlignmentType.RIGHT })],
+          ...cellStyle,
+          margins: { top: 70, bottom: 70, left: 140, right: 140 },
+          width: { size: 1400, type: WidthType.DXA },
+        }),
+      ],
+    })
+  })
+
+  const servicesTable = new Table({
+    width: { size: TABLE_WIDTH, type: WidthType.DXA },
+    columnWidths: [4200, 2000, 1600, 1400],
+    rows: [serviceHeaderRow, ...serviceRows],
+  })
+
+  // ─── Schedule Table ────────────────────────────────────────────────────────
+  const scheduleTable = schedule?.length > 0 ? new Table({
+    width: { size: TABLE_WIDTH, type: WidthType.DXA },
+    columnWidths: [1400, 3600, 2800, 1400],
+    rows: [
+      new TableRow({
+        children: [
+          headerCell(isDE ? 'Zeit'     : 'Time',     primaryHex),
+          headerCell(isDE ? 'Was'      : 'Activity', primaryHex),
+          headerCell(isDE ? 'Wo'       : 'Location', primaryHex),
+          headerCell('PAX',                           primaryHex),
+        ],
+        tableHeader: true,
+      }),
+      ...schedule.map((row, idx) => {
+        const fill = idx % 2 === 0 ? 'FFFFFF' : 'F9FAFB'
+        return new TableRow({
+          children: [
+            dataCell(row.time     || ''),
+            dataCell(row.activity || ''),
+            dataCell(row.location || ''),
+            dataCell(row.pax != null ? String(row.pax) : ''),
+          ].map(c => ({ ...c, shading: { fill, type: ShadingType.CLEAR } })),
+        })
+      }),
+    ],
+  }) : null
+
+  // ─── Price Summary Table ───────────────────────────────────────────────────
+  const priceRows = [
+    [isDE ? 'Zwischentotal' : 'Subtotal', fmtCHF(subtotal), false],
+    ...(surcharge > 0 ? [[isDE ? 'Agentur-Aufschlag' : 'Agency surcharge', fmtCHF(surcharge), false]] : []),
+    [isDE ? 'GESAMTTOTAL (inkl. MWST)' : 'GRAND TOTAL (incl. VAT)', fmtCHF(total), true],
   ]
 
-  // ─── Document ───
+  const priceTable = new Table({
+    width: { size: 5400, type: WidthType.DXA },
+    columnWidths: [3600, 1800],
+    rows: priceRows.map(([k, v, isLast]) => new TableRow({
+      children: [
+        new TableCell({
+          children: [para([txt(k, { bold: isLast, size: isLast ? 20 : 18, color: isLast ? primaryHex : '333333' })])],
+          shading: { fill: isLast ? 'F0F4F8' : 'F3F4F6', type: ShadingType.CLEAR },
+          margins: { top: 80, bottom: 80, left: 140, right: 140 },
+          borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' } },
+        }),
+        new TableCell({
+          children: [para([txt(v, { bold: isLast, size: isLast ? 20 : 18, color: isLast ? primaryHex : '333333' })], { alignment: AlignmentType.RIGHT })],
+          shading: { fill: isLast ? 'F0F4F8' : 'FFFFFF', type: ShadingType.CLEAR },
+          margins: { top: 80, bottom: 80, left: 140, right: 140 },
+          borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' } },
+        }),
+      ],
+    })),
+  })
+
+  // ─── Payment Method Table (matches template format) ────────────────────────
+  const isGesamtrechnung = !paymentType || paymentType === 'Gesamtrechnung'
+  const paymentTable = new Table({
+    width: { size: 5400, type: WidthType.DXA },
+    columnWidths: [2800, 1300, 1300],
+    rows: [
+      new TableRow({
+        children: [
+          headerCell(isDE ? 'Leistung'           : 'Service',          primaryHex),
+          headerCell(isDE ? 'Gesamtrechnung'     : 'Full invoice',     primaryHex),
+          headerCell('payself',                                         primaryHex),
+        ],
+        tableHeader: true,
+      }),
+      new TableRow({
+        children: [
+          dataCell(isDE ? 'Seminarpauschale' : 'Seminar fee'),
+          dataCell(isGesamtrechnung ? '✓' : '', { alignment: AlignmentType.CENTER }),
+          dataCell(!isGesamtrechnung ? '✓' : '', { alignment: AlignmentType.CENTER }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          dataCell(isDE ? 'Getränke zu den Mahlzeiten' : 'Beverages with meals'),
+          dataCell('✓', { alignment: AlignmentType.CENTER }),
+          dataCell('', { alignment: AlignmentType.CENTER }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          dataCell(isDE ? 'Extras' : 'Extras'),
+          dataCell('', { alignment: AlignmentType.CENTER }),
+          dataCell('✓', { alignment: AlignmentType.CENTER }),
+        ],
+      }),
+    ],
+  })
+
+  // ─── AGB ──────────────────────────────────────────────────────────────────
+  const agbRaw = template.agbText || [
+    isDE ? 'Stornobedingungen:' : 'Cancellation Policy:',
+    isDE ? '• 0–5 Tage vor dem Anlass: 100% des Offerten-Betrages'   : '• 0–5 days before the event: 100%',
+    isDE ? '• 6–14 Tage vor dem Anlass: 75% des Offerten-Betrages'   : '• 6–14 days: 75%',
+    isDE ? '• 15–30 Tage vor dem Anlass: 50% des Offerten-Betrages'  : '• 15–30 days: 50%',
+    isDE ? '• 31–60 Tage vor dem Anlass: 20% des Offerten-Betrages'  : '• 31–60 days: 20%',
+  ].join('\n')
+
+  const agbParagraphs = agbRaw.split('\n').map((line, i) =>
+    para([txt(line, { size: 16, bold: i === 0, color: '555555' })], { spacing: { before: 40 } })
+  )
+
+  // ─── Booking confirmation note ─────────────────────────────────────────────
+  const bookingNoteMap = {
+    de: 'Gerne buche ich das Seminar und bin mit den Allgemeinen Geschäftsbedingungen einverstanden.',
+    en: 'I hereby confirm the booking and agree to the general terms and conditions.',
+    fr: 'Je confirme la réservation et accepte les conditions générales.',
+    es: 'Confirmo la reserva y acepto las condiciones generales.',
+  }
+  const bookingNote = bookingNoteMap[lang] ?? bookingNoteMap.de
+
+  // ─── Document ─────────────────────────────────────────────────────────────
   const doc = new Document({
+    styles: {
+      default: {
+        document: { run: { font: 'Arial', size: 20 } },
+      },
+    },
     sections: [{
       properties: {
-        page: { margin: { top: 1200, bottom: 1200, left: 1200, right: 1200 } },
+        page: {
+          size: { width: 11906, height: 16838 }, // A4
+          margin: { top: 1200, bottom: 1200, left: 1300, right: 1300 },
+        },
       },
       children: [
-        // Header: Hotel name
-        new Paragraph({
-          children: [txt(hotelInfo.name, { bold: true, size: 28, color: ALPINE_GREEN })],
-          alignment: AlignmentType.LEFT,
-        }),
-        new Paragraph({
-          children: [txt(`${hotelInfo.address} | ${hotelInfo.phone} | ${hotelInfo.email}`, { size: 16, color: '666666' })],
-        }),
-        hr(),
 
-        // Greeting
-        new Paragraph({ children: [txt(greeting, { size: 24, bold: true })], spacing: { before: 200, after: 100 } }),
-        new Paragraph({ children: [txt(introText, { size: 20 })], spacing: { after: 300 } }),
+        // ── Hotel header bar ─────────────────────────────────────────────
+        new Table({
+          width: { size: TABLE_WIDTH, type: WidthType.DXA },
+          columnWidths: logoData ? [2000, 7200] : [TABLE_WIDTH],
+          borders: ALL_NONE,
+          rows: [new TableRow({
+            children: [
+              ...(logoData ? [new TableCell({
+                children: [new Paragraph({
+                  children: [new ImageRun({
+                    type: 'png',
+                    data: logoData,
+                    transformation: { width: 90, height: 60 },
+                    altText: { title: 'Logo', description: 'Hotel Logo', name: 'Logo' },
+                  })],
+                })],
+                borders: ALL_NONE,
+                verticalAlign: 'center',
+                width: { size: 2000, type: WidthType.DXA },
+              })] : []),
+              new TableCell({
+                children: [
+                  para([txt(hotelInfo?.name || '', { bold: true, size: 28, color: primaryHex })]),
+                  para([txt(`${hotelInfo?.address || ''} | ${hotelInfo?.phone || ''} | ${hotelInfo?.email || ''}`, { size: 15, color: '777777' })]),
+                ],
+                borders: ALL_NONE,
+                width: { size: logoData ? 7200 : TABLE_WIDTH, type: WidthType.DXA },
+              }),
+            ],
+          })],
+        }),
 
-        // Event Details
-        section(isDE ? 'Veranstaltungsdetails' : 'Event Details'),
+        hr(primaryHex),
+
+        // ── Offer title ──────────────────────────────────────────────────
+        para([txt(offerTitle, { bold: true, size: 30, color: primaryHex })], {
+          spacing: { before: 160, after: 80 },
+        }),
+
+        // ── Greeting + intro ─────────────────────────────────────────────
+        para([txt(greeting, { size: 22, bold: true })], { spacing: { before: 200, after: 80 } }),
+        ...(introText ? [para([txt(introText, { size: 20 })], { spacing: { after: 200 } })] : []),
+
+        // ── Contact & Event details ──────────────────────────────────────
+        sectionTitle(isDE ? 'Kontaktdaten & Anlass' : 'Contact & Event Details', primaryColor),
         detailTable,
 
-        // Services
-        new Paragraph({ spacing: { before: 300, after: 100 }, children: [] }),
-        section(isDE ? 'Gewählte Leistungen' : 'Selected Services'),
+        // ── Services ─────────────────────────────────────────────────────
+        sectionTitle(isDE ? 'Gewählte Leistungen' : 'Selected Services', primaryColor),
         servicesTable,
+        para([txt(isDE ? 'Getränke zu den Mahlzeiten werden separat in Rechnung gestellt.' : 'Beverages with meals will be invoiced separately.', { size: 16, italics: true, color: '777777' })], { spacing: { before: 80 } }),
 
-        // Schedule
-        ...(scheduleRows ? [
-          new Paragraph({ spacing: { before: 300, after: 100 }, children: [] }),
-          section(isDE ? 'Tagesablauf' : 'Schedule'),
-          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: scheduleRows }),
+        // ── Schedule ─────────────────────────────────────────────────────
+        ...(scheduleTable ? [
+          sectionTitle(isDE ? 'Tagesablauf' : 'Schedule', primaryColor),
+          scheduleTable,
         ] : []),
 
-        // Special requests
+        // ── Special requests ─────────────────────────────────────────────
         ...(specialRequests ? [
-          new Paragraph({ spacing: { before: 200, after: 60 }, children: [] }),
-          new Paragraph({ children: [txt(isDE ? `Besondere Wünsche: ${specialRequests}` : `Special requests: ${specialRequests}`, { size: 18, italics: true, color: '555555' })] }),
+          spacer(160),
+          para([
+            txt(isDE ? 'Besondere Wünsche: ' : 'Special requests: ', { bold: true, size: 18 }),
+            txt(specialRequests, { size: 18, italics: true, color: '555555' }),
+          ]),
         ] : []),
 
-        // Price summary
-        new Paragraph({ spacing: { before: 300, after: 100 }, children: [] }),
-        section(isDE ? 'Preisübersicht' : 'Price Summary'),
+        // ── Price summary ─────────────────────────────────────────────────
+        sectionTitle(isDE ? 'Preisübersicht' : 'Price Summary', primaryColor),
         priceTable,
 
-        // Payment & Option
-        new Paragraph({ spacing: { before: 300, after: 60 }, children: [] }),
-        new Paragraph({ children: [txt(`${isDE ? 'Verrechnungsart' : 'Payment method'}: ${paymentType}`, { size: 18 })] }),
-        new Paragraph({ children: [txt(`${isDE ? 'Diese Offerte ist gültig bis' : 'This offer is valid until'}: ${fmtDate(optionDate, lang)}`, { size: 18 })] }),
+        // ── Payment method ────────────────────────────────────────────────
+        sectionTitle(isDE ? 'Verrechnung' : 'Payment Method', primaryColor),
+        paymentTable,
 
-        // AGB
-        new Paragraph({ spacing: { before: 300, after: 100 }, children: [] }),
-        hr(),
-        ...agbLines.map((line, i) => new Paragraph({
-          children: [txt(line, { size: 16, bold: i === 0, color: '555555' })],
-          spacing: { before: 40 },
-        })),
+        // ── Option date ───────────────────────────────────────────────────
+        spacer(160),
+        para([
+          txt(isDE ? 'Optionsdatum: ' : 'Valid until: ', { bold: true, size: 18 }),
+          txt(optionDate ? fmtDate(optionDate, lang) : '—', { size: 18 }),
+        ]),
 
-        // Signature
+        // ── AGB ───────────────────────────────────────────────────────────
+        spacer(200),
         hr(),
-        new Paragraph({ spacing: { before: 300 }, children: [] }),
-        new Paragraph({ children: [txt(isDE ? 'Buchungsbestätigung' : 'Booking Confirmation', { bold: true, size: 20 })] }),
-        new Paragraph({ children: [txt(isDE ? 'Mit meiner Unterschrift bestätige ich die Buchung sowie die AGB.' : 'By signing, I confirm the booking and the terms and conditions.', { size: 18 })] }),
-        new Paragraph({ spacing: { before: 400 }, children: [] }),
+        para([txt(isDE ? 'Allgemeine Geschäftsbedingungen' : 'Terms & Conditions', { bold: true, size: 18, color: primaryHex })], { spacing: { before: 120, after: 60 } }),
+        ...agbParagraphs,
+
+        // ── Closing ───────────────────────────────────────────────────────
+        spacer(240),
+        hr(),
+        para([txt(isDE ? 'Wir freuen uns, dich und dein Team bald bei uns begrüssen zu dürfen.' : 'We look forward to welcoming you and your team.', { size: 18 })], { spacing: { before: 160, after: 120 } }),
+        para([txt(closing, { size: 18 })]),
+        spacer(80),
+        para([txt(sigName,  { size: 18, bold: true })]),
+        ...(sigTitle ? [para([txt(sigTitle, { size: 17, color: '555555' })])] : []),
+        ...(sigPhone ? [para([txt(sigPhone, { size: 17, color: '555555' })])] : []),
+        ...(sigEmail ? [para([txt(sigEmail, { size: 17, color: '555555' })])] : []),
+
+        // ── Signature block ───────────────────────────────────────────────
+        spacer(320),
+        hr(),
+        para([txt(isDE ? 'Buchungsbestätigung' : 'Booking Confirmation', { bold: true, size: 20, color: primaryHex })], { spacing: { before: 120, after: 80 } }),
+        para([txt(bookingNote, { size: 18 })], { spacing: { after: 320 } }),
 
         new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          borders: { top: BORDER_NONE, bottom: BORDER_NONE, left: BORDER_NONE, right: BORDER_NONE, insideH: BORDER_NONE, insideV: BORDER_NONE },
-          rows: [
-            new TableRow({
-              children: [
-                new TableCell({
-                  children: [
-                    new Paragraph({ children: [txt('________________________', { size: 18 })] }),
-                    new Paragraph({ children: [txt(isDE ? 'Ort, Datum' : 'Place, Date', { size: 16, color: '888888' })] }),
-                  ],
-                  borders: ALL_NONE,
-                }),
-                new TableCell({
-                  children: [
-                    new Paragraph({ children: [txt('________________________', { size: 18 })] }),
-                    new Paragraph({ children: [txt(isDE ? 'Unterschrift Kunde' : 'Client Signature', { size: 16, color: '888888' })] }),
-                  ],
-                  borders: ALL_NONE,
-                }),
-                new TableCell({
-                  children: [
-                    new Paragraph({ children: [txt('________________________', { size: 18 })] }),
-                    new Paragraph({ children: [txt(isDE ? `Unterschrift ${hotelInfo.name}` : `${hotelInfo.name} Signature`, { size: 16, color: '888888' })] }),
-                  ],
-                  borders: ALL_NONE,
-                }),
-              ],
-            }),
-          ],
+          width: { size: TABLE_WIDTH, type: WidthType.DXA },
+          columnWidths: [2900, 3100, 3200],
+          borders: ALL_NONE,
+          rows: [new TableRow({
+            children: [
+              new TableCell({
+                children: [
+                  para([txt('________________________', { size: 18 })]),
+                  para([txt(isDE ? 'Ort, Datum' : 'Place, Date', { size: 15, color: '888888' })]),
+                ],
+                borders: ALL_NONE,
+              }),
+              new TableCell({
+                children: [
+                  para([txt('________________________', { size: 18 })]),
+                  para([txt(isDE ? 'Unterschrift Auftraggeber' : 'Client Signature', { size: 15, color: '888888' })]),
+                ],
+                borders: ALL_NONE,
+              }),
+              new TableCell({
+                children: [
+                  para([txt('________________________', { size: 18 })]),
+                  para([txt(isDE ? `Unterschrift ${hotelInfo?.name || ''}` : `${hotelInfo?.name || ''} Signature`, { size: 15, color: '888888' })]),
+                ],
+                borders: ALL_NONE,
+              }),
+            ],
+          })],
         }),
 
-        new Paragraph({ spacing: { before: 300 }, children: [] }),
-        new Paragraph({
-          children: [txt(`${hotelInfo.contactPerson} | ${hotelInfo.phone} | ${hotelInfo.email} | ${hotelInfo.website}`, { size: 14, color: '888888' })],
-          alignment: AlignmentType.CENTER,
-        }),
+        // ── Footer note ───────────────────────────────────────────────────
+        spacer(300),
+        para(
+          [txt(`${hotelInfo?.name || ''} | ${hotelInfo?.address || ''} | ${hotelInfo?.phone || ''} | ${hotelInfo?.email || ''}`, { size: 14, color: 'AAAAAA' })],
+          { alignment: AlignmentType.CENTER }
+        ),
       ],
     }],
   })
 
-  const blob = await Packer.toBlob(doc)
-  const safeName = (firstName || 'Offerte').replace(/[^a-zA-Z0-9]/g, '_')
-  const dateStr  = eventDate ? eventDate.replace(/-/g, '') : 'oD'
-  saveAs(blob, `Offerte_${safeName}_${dateStr}.docx`)
+  const blob    = await Packer.toBlob(doc)
+  const name    = `${firstName || ''}_${lastName || ''}`.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+  const dateStr = eventDate ? eventDate.replace(/-/g, '') : 'oDatum'
+  saveAs(blob, `Offerte_${name || 'Gast'}_${dateStr}.docx`)
 }
