@@ -9,8 +9,9 @@ import { calcItemTotal, calcSubtotal, calcSurcharge, calcTotal, fmtCHF, fmtDate 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function hexColor(color) {
-  // Strip # if present, fallback to dark green
-  return (color || '#2D5016').replace('#', '')
+  const raw = (color || '#2D5016').replace('#', '').trim().toUpperCase()
+  // Must be exactly 6 valid hex chars — fallback to safe dark green otherwise
+  return /^[0-9A-F]{6}$/.test(raw) ? raw : '2D5016'
 }
 
 function lighten(hex) {
@@ -48,9 +49,10 @@ function sectionTitle(title, color) {
   })
 }
 
-function dataCell(content, opts = {}) {
+function dataCell(content, { alignment, bold, color, italics } = {}) {
   const children = Array.isArray(content) ? content : [
-    para([txt(String(content ?? ''), { size: 18, ...opts })])
+    para([txt(String(content ?? ''), { size: 18, bold, color, italics })],
+      alignment ? { alignment } : {}),
   ]
   return new TableCell({
     children,
@@ -297,13 +299,26 @@ export async function generateDocx(offer) {
       }),
       ...schedule.map((row, idx) => {
         const fill = idx % 2 === 0 ? 'FFFFFF' : 'F9FAFB'
+        const shade = { fill, type: ShadingType.CLEAR }
+        const mkCell = (text, width) => new TableCell({
+          children: [para([txt(text, { size: 18 })])],
+          shading: shade,
+          margins: { top: 60, bottom: 60, left: 140, right: 140 },
+          width: { size: width, type: WidthType.DXA },
+          borders: {
+            top:    { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            left:   { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            right:  { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+          },
+        })
         return new TableRow({
           children: [
-            dataCell(row.time     || ''),
-            dataCell(row.activity || ''),
-            dataCell(row.location || ''),
-            dataCell(row.pax != null ? String(row.pax) : ''),
-          ].map(c => ({ ...c, shading: { fill, type: ShadingType.CLEAR } })),
+            mkCell(row.time     || '', 1400),
+            mkCell(row.activity || '', 3600),
+            mkCell(row.location || '', 2800),
+            mkCell(row.pax != null ? String(row.pax) : '', 1400),
+          ],
         })
       }),
     ],
@@ -356,6 +371,7 @@ export async function generateDocx(offer) {
           dataCell(isDE ? 'Seminarpauschale' : 'Seminar fee'),
           dataCell(isGesamtrechnung ? '✓' : '', { alignment: AlignmentType.CENTER }),
           dataCell(!isGesamtrechnung ? '✓' : '', { alignment: AlignmentType.CENTER }),
+
         ],
       }),
       new TableRow({
