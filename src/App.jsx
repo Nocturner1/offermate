@@ -70,6 +70,9 @@ export default function App() {
 
   // ─── Load on mount ────────────────────────────────────────────────────────
   useEffect(() => {
+    // Alten API-Key aus früheren Versionen entfernen (wird nicht mehr persistiert)
+    try { localStorage.removeItem('om_api_key') } catch { /* ignore */ }
+
     fetch('/api/config').then(r => r.json()).then(d => setServerHasKey(!!d.hasServerKey)).catch(() => {})
 
     fetch('/api/health')
@@ -303,13 +306,17 @@ export default function App() {
   const handleDuplicateInquiry = (inq) => {
     const newId = `inq_${Date.now()}`
     const now = new Date().toISOString()
+    const copyTitle = inq.eventTitle ? `${inq.eventTitle} (Kopie)` : '(Kopie)'
+    // Deep clone — items/schedule dürfen nicht mit dem Original geteilt werden
+    const clone = structuredClone(inq)
     setInquiries(prev => [...prev, {
-      ...inq,
+      ...clone,
       id: newId,
       createdAt: now,
       updatedAt: now,
       status: 'new',
-      offer: { ...inq.offer, inquiryId: newId },
+      eventTitle: copyTitle,
+      offer: { ...clone.offer, inquiryId: newId, eventTitle: copyTitle },
     }])
   }
 
