@@ -272,11 +272,11 @@ export default function OfferPreview({ offer, setOffer, onBack, onEdit }) {
           ))}
         </div>
 
-        <button onClick={handlePrint} className="btn-secondary">
+        <button onClick={handlePrint} className="btn-secondary" title="Drucken oder als PDF speichern (im Druckdialog 'Als PDF speichern' wählen)">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
           </svg>
-          Drucken
+          PDF / Drucken
         </button>
         <button onClick={handleDocx} disabled={isExporting} className="btn-primary">
           {isExporting ? (

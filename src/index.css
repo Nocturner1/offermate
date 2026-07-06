@@ -91,8 +91,21 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #000; }
 
-/* Print */
+/* Print / PDF */
 @media print {
   .no-print { display: none !important; }
   .sidebar  { display: none !important; }
+  .ml-64    { margin-left: 0 !important; }
+  html, body { height: auto !important; }
+  * {
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .offer-preview {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  @page { margin: 1.5cm; size: A4; }
 }

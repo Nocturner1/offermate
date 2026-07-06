@@ -59,7 +59,7 @@ export default function App() {
 
   const [serverHasKey,    setServerHasKey]    = useState(false)
   const [dbError,         setDbError]         = useState(null)
-  const [apiKey,          setApiKey]          = useLocalStorage('om_api_key',       '')
+  const [apiKey,          setApiKey]          = useState('')
   const [selectedHotelId, setSelectedHotelId] = useLocalStorage('om_selected_hotel', DEFAULT_HOTELS[0].id)
 
   // ─── Shared state (backed by SQLite) ──────────────────────────────────────
@@ -300,6 +300,19 @@ export default function App() {
     setOffer(inq.offer); setStep('preview'); setView('offer')
   }
 
+  const handleDuplicateInquiry = (inq) => {
+    const newId = `inq_${Date.now()}`
+    const now = new Date().toISOString()
+    setInquiries(prev => [...prev, {
+      ...inq,
+      id: newId,
+      createdAt: now,
+      updatedAt: now,
+      status: 'new',
+      offer: { ...inq.offer, inquiryId: newId },
+    }])
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
   const pageTitle = view === 'offer'
     ? (step === 'input' ? 'Neue Offerte' : step === 'edit' ? 'Offerte bearbeiten' : 'Offerte Vorschau')
@@ -436,6 +449,7 @@ export default function App() {
               hotels={hotels}
               onOpenOffer={handleOpenOffer}
               onNewOffer={handleNewOffer}
+              onDuplicateInquiry={handleDuplicateInquiry}
               availability={availability}
               setAvailability={setAvailability}
             />

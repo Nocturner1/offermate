@@ -394,7 +394,7 @@ export default function AdminPanel({ isOpen, onClose, hotels, setHotels, onUpdat
               ) : (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                   <p className="font-medium mb-1">Anthropic Claude API-Key</p>
-                  <p className="text-xs">Wird nur lokal im Browser gespeichert. Alternativ: ANTHROPIC_API_KEY als Server-Umgebungsvariable setzen.</p>
+                  <p className="text-xs">Nur für diese Sitzung gespeichert — wird beim Schliessen des Browsers verworfen. Für dauerhaften Betrieb: <code className="bg-blue-100 px-1 rounded">ANTHROPIC_API_KEY</code> als Server-Umgebungsvariable setzen.</p>
                 </div>
               )}
               {!serverHasKey && (
@@ -424,7 +424,7 @@ export default function AdminPanel({ isOpen, onClose, hotels, setHotels, onUpdat
               )}
               <div className="text-xs text-gray-400 space-y-1">
                 <p>Modell: claude-haiku-4-5 · ~CHF 0.001 pro Analyse</p>
-                <p>Keys: console.anthropic.com</p>
+                <p>Keys erstellen: console.anthropic.com</p>
               </div>
             </div>
           )}
